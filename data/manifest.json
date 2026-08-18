@@ -1,0 +1,479 @@
+{
+  "generated": "2026-08-18T07:31:53.993036+00:00",
+  "layers": [
+    {
+      "state": "NSW",
+      "life": "live",
+      "file": "data/nsw_live.geojson",
+      "features": 2411,
+      "bytes": 1758429
+    },
+    {
+      "state": "NSW",
+      "life": "dead",
+      "file": "data/nsw_dead.geojson",
+      "features": 10270,
+      "bytes": 6308665
+    },
+    {
+      "state": "VIC",
+      "life": "live",
+      "file": "data/vic_live.geojson",
+      "features": 2209,
+      "bytes": 1738688
+    },
+    {
+      "state": "VIC",
+      "life": "dead",
+      "file": "data/vic_dead.geojson",
+      "features": 20421,
+      "bytes": 8016377
+    },
+    {
+      "state": "QLD",
+      "life": "live",
+      "file": "data/qld_live.geojson",
+      "features": 7733,
+      "bytes": 4231170
+    },
+    {
+      "state": "QLD",
+      "life": "dead",
+      "file": "data/qld_dead.geojson",
+      "features": 0,
+      "bytes": 98
+    },
+    {
+      "state": "WA",
+      "life": "live",
+      "file": "data/wa_live.geojson",
+      "features": 30454,
+      "bytes": 15009241
+    },
+    {
+      "state": "WA",
+      "life": "dead",
+      "file": "data/wa_dead.geojson",
+      "features": 0,
+      "bytes": 98
+    },
+    {
+      "state": "SA",
+      "life": "live",
+      "file": "data/sa_live.geojson",
+      "features": 2780,
+      "bytes": 1599292
+    },
+    {
+      "state": "SA",
+      "life": "dead",
+      "file": "data/sa_dead.geojson",
+      "features": 10963,
+      "bytes": 5285230
+    },
+    {
+      "state": "TAS",
+      "life": "live",
+      "file": "data/tas_live.geojson",
+      "features": 689,
+      "bytes": 1166157
+    },
+    {
+      "state": "TAS",
+      "life": "dead",
+      "file": "data/tas_dead.geojson",
+      "features": 10627,
+      "bytes": 5461131
+    },
+    {
+      "state": "NT",
+      "life": "live",
+      "file": "data/nt_live.geojson",
+      "features": 3456,
+      "bytes": 2269042
+    },
+    {
+      "state": "NT",
+      "life": "dead",
+      "file": "data/nt_dead.geojson",
+      "features": 22476,
+      "bytes": 10376935
+    }
+  ],
+  "sources": [
+    [
+      "NSW",
+      "titles_title_granted.geojson",
+      2296,
+      "live"
+    ],
+    [
+      "NSW",
+      "titles_title_applications.geojson",
+      115,
+      "live/application"
+    ],
+    [
+      "NSW",
+      "titles_title_historic.geojson",
+      10270,
+      "dead"
+    ],
+    [
+      "VIC",
+      "el.geojson",
+      592,
+      "live"
+    ],
+    [
+      "VIC",
+      "ewa.geojson",
+      999,
+      "live"
+    ],
+    [
+      "VIC",
+      "elpend.geojson",
+      411,
+      "live"
+    ],
+    [
+      "VIC",
+      "minten.geojson Current/Application not in el/ewa/elpend",
+      207,
+      "live"
+    ],
+    [
+      "VIC",
+      "minten.geojson Expired/Never Granted",
+      17491,
+      "dead"
+    ],
+    [
+      "VIC",
+      "elhist.geojson (deduped)",
+      2761,
+      "dead"
+    ],
+    [
+      "VIC",
+      "elrelin.geojson (deduped)",
+      172,
+      "dead"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_2.geojson",
+      489,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_3.geojson",
+      2272,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_8.geojson",
+      3,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_9.geojson",
+      318,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_22.geojson",
+      19,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_25.geojson",
+      183,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_33.geojson",
+      109,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_36.geojson",
+      1862,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_40.geojson",
+      313,
+      "live"
+    ],
+    [
+      "QLD",
+      "MinesPermitsCurrent_44.geojson",
+      2165,
+      "live"
+    ],
+    [
+      "WA",
+      "Industry_and_Mining_3.geojson",
+      30454,
+      "live"
+    ],
+    [
+      "WA",
+      "Industry_and_Mining_15.geojson + tail",
+      509999,
+      "dead SKIPPED (too large)"
+    ],
+    [
+      "SA",
+      "mineral_and_or_opal_exploration_licence.geojson",
+      907,
+      "live"
+    ],
+    [
+      "SA",
+      "mineral_claims.geojson",
+      32,
+      "live"
+    ],
+    [
+      "SA",
+      "mineral_leases.geojson",
+      714,
+      "live"
+    ],
+    [
+      "SA",
+      "miscellaneous_purposes_leases.geojson",
+      124,
+      "live"
+    ],
+    [
+      "SA",
+      "olympic_dam_sml.geojson",
+      1,
+      "live"
+    ],
+    [
+      "SA",
+      "private_mines.geojson",
+      210,
+      "live"
+    ],
+    [
+      "SA",
+      "retention_leases.geojson",
+      25,
+      "live"
+    ],
+    [
+      "SA",
+      "extractive_mineral_leases.geojson",
+      577,
+      "live"
+    ],
+    [
+      "SA",
+      "mineral_and_or_opal_exploration_licence_applications.geojson",
+      163,
+      "live/application"
+    ],
+    [
+      "SA",
+      "mining_and_production_lease_applications.geojson",
+      16,
+      "live/application"
+    ],
+    [
+      "SA",
+      "mining_and_production_tenement_applications.geojson",
+      12,
+      "live/application"
+    ],
+    [
+      "SA",
+      "non_active_mineral_exploration_licences.geojson",
+      6122,
+      "dead"
+    ],
+    [
+      "SA",
+      "non_active_mineral_production_tenements.geojson",
+      4069,
+      "dead"
+    ],
+    [
+      "SA",
+      "non_active_special_mining_licences.geojson",
+      726,
+      "dead"
+    ],
+    [
+      "SA",
+      "relinquished_ground.geojson",
+      46,
+      "dead"
+    ],
+    [
+      "TAS",
+      "LEASES.shp",
+      478,
+      "live"
+    ],
+    [
+      "TAS",
+      "LICENCES.shp",
+      211,
+      "live"
+    ],
+    [
+      "TAS",
+      "LEASE_NON_CURRENT.shp",
+      8131,
+      "dead"
+    ],
+    [
+      "TAS",
+      "LICENCE_NON_CURRENT.shp",
+      2496,
+      "dead"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_EMEL_APPL.shp raw=19 dummy=1 grouped",
+      9,
+      "live"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_EMEL_GRNT.shp raw=80 dummy=1 grouped",
+      35,
+      "live"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_EXPL_ALRA.shp raw=49 dummy=0 grouped",
+      47,
+      "live"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_EXPL_APPL.shp raw=1592 dummy=1 grouped",
+      779,
+      "live"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_EXPL_CESS.shp raw=20 dummy=1 grouped",
+      9,
+      "live"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_EXPL_GRNT.shp raw=2073 dummy=1 grouped",
+      970,
+      "live"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_PROD_APPL.shp raw=1646 dummy=1 grouped",
+      638,
+      "live"
+    ],
+    [
+      "NT",
+      "MIN_TITLE_PROD_GRNT.shp raw=2089 dummy=1 grouped",
+      969,
+      "live"
+    ],
+    [
+      "NT",
+      "TITLES_MIN_HISTORICAL.shp raw=22479 dummy=0 grouped",
+      22476,
+      "dead"
+    ]
+  ],
+  "stats": {
+    "NSW:live": {
+      "raw": 2411,
+      "kept": 2411,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "NSW:dead": {
+      "raw": 10270,
+      "kept": 10270,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "VIC:live": {
+      "raw": 2209,
+      "kept": 2209,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "VIC:dead": {
+      "raw": 20424,
+      "kept": 20421,
+      "skipped_geom": 3,
+      "skipped_dummy": 0
+    },
+    "QLD:live": {
+      "raw": 7733,
+      "kept": 7733,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "WA:live": {
+      "raw": 30454,
+      "kept": 30454,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "SA:live": {
+      "raw": 2781,
+      "kept": 2780,
+      "skipped_geom": 1,
+      "skipped_dummy": 0
+    },
+    "SA:dead": {
+      "raw": 10963,
+      "kept": 10963,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "TAS:live": {
+      "raw": 689,
+      "kept": 689,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "TAS:dead": {
+      "raw": 10627,
+      "kept": 10627,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "NT:live": {
+      "raw": 3456,
+      "kept": 3456,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    },
+    "NT:dead": {
+      "raw": 22476,
+      "kept": 22476,
+      "skipped_geom": 0,
+      "skipped_dummy": 0
+    }
+  }
+}

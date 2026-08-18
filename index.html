@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Australian mining &amp; exploration titles</title>
+  <link rel="stylesheet" href="vendor/maplibre-gl.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <aside id="panel">
+    <header>
+      <h1>AU titles map</h1>
+      <p class="sub">Live mining &amp; exploration titles · Australia</p>
+    </header>
+
+    <section>
+      <h2>Basemap</h2>
+      <label class="row"><input type="checkbox" id="osm" checked /> OSM streets (needs network)</label>
+    </section>
+
+    <section>
+      <h2>Live titles <span class="hint">on by default</span></h2>
+      <div id="live-toggles"></div>
+    </section>
+
+    <section>
+      <h2>Dead / historic <span class="hint">optional</span></h2>
+      <label class="row"><input type="checkbox" id="dead-master" /> Enable dead layers</label>
+      <div id="dead-toggles" class="disabled"></div>
+      <p class="note">WA dead (~510k) omitted for performance. QLD harvest has current permits only.</p>
+    </section>
+
+    <section>
+      <h2>Status</h2>
+      <pre id="status">Loading…</pre>
+    </section>
+
+    <footer>
+      <p>Source: official state title feeds. WA dead titles omitted for performance.</p>
+    </footer>
+  </aside>
+  <div id="map"></div>
+  <div id="popup" class="hidden"></div>
+  <script src="vendor/maplibre-gl.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

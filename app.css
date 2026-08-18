@@ -1,0 +1,21 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0f1419; color: #e7ecf1; }
+#map { position: absolute; top: 0; right: 0; bottom: 0; left: 300px; }
+#panel { position: absolute; top: 0; left: 0; bottom: 0; width: 300px; overflow: auto; background: #151b23; border-right: 1px solid #2a3441; padding: 14px 14px 24px; z-index: 2; }
+h1 { font-size: 1.05rem; margin: 0 0 4px; }
+.sub { margin: 0 0 12px; color: #9aa7b5; font-size: 0.78rem; }
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #9aa7b5; margin: 16px 0 8px; }
+.hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: #6b7785; }
+.row { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin: 4px 0; cursor: pointer; }
+.row input { accent-color: #3d9cf0; }
+.swatch { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.35); flex: 0 0 auto; }
+.disabled { opacity: 0.45; pointer-events: none; }
+.note { font-size: 0.72rem; color: #8a97a6; line-height: 1.35; margin: 8px 0 0; }
+#status { white-space: pre-wrap; font-size: 0.72rem; background: #0f1419; border: 1px solid #2a3441; border-radius: 6px; padding: 8px; color: #b7c2cd; max-height: 180px; overflow: auto; }
+footer { margin-top: 18px; font-size: 0.72rem; color: #6b7785; line-height: 1.4; }
+.maplibregl-popup-content { background: #1b2430; color: #e7ecf1; border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); max-width: 320px; }
+.maplibregl-popup-tip { border-top-color: #1b2430 !important; }
+.maplibregl-popup-close-button { color: #c5d0db; font-size: 18px; }
+.popup-title { font-weight: 650; margin-bottom: 6px; }
+.popup-row { display: grid; grid-template-columns: 72px 1fr; gap: 6px; font-size: 0.8rem; margin: 2px 0; }
+.popup-row span:first-child { color: #8a97a6; }
