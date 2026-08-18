@@ -19,3 +19,10 @@ footer { margin-top: 18px; font-size: 0.72rem; color: #6b7785; line-height: 1.4;
 .popup-title { font-weight: 650; margin-bottom: 6px; }
 .popup-row { display: grid; grid-template-columns: 72px 1fr; gap: 6px; font-size: 0.8rem; margin: 2px 0; }
 .popup-row span:first-child { color: #8a97a6; }
+#geo-search { width: 100%; margin: 8px 0 6px; padding: 6px 8px; border-radius: 6px; border: 1px solid #2a3441; background: #0f1419; color: #e7ecf1; font-size: 0.82rem; }
+#geo-search:focus { outline: 1px solid #3d9cf0; }
+.kind-actions { display: flex; gap: 8px; margin: 0 0 6px; }
+.kind-actions button { background: #1e2733; color: #c5d0db; border: 1px solid #2a3441; border-radius: 4px; font-size: 0.72rem; padding: 3px 8px; cursor: pointer; }
+.kind-actions button:hover { background: #263140; }
+#kind-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6px; }
+#kind-toggles .row { font-size: 0.78rem; margin: 2px 0; }
