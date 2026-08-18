@@ -28,7 +28,7 @@ Applies to **occurrences only**. Title GeoJSON layers have holder / tenure / sta
 
 ## Occurrences
 
-Clustered mineral occurrences / mines (`data/occ.json`, ~7.9 MB, 109,872 points). Per-state toggles plus mineral-type filter. Popup fields from source: name, commodity, type, status. **WA MINEDEX is CC BY-NC 4.0.**
+Clustered mineral occurrences / mines (`data/occ.json`, ~9.5 MB, 132,114 points). Per-state toggles plus mineral-type filter. Popup fields from source: name, commodity, type, status. **WA MINEDEX is CC BY-NC 4.0.**
 
 | State | Points | Source |
 | --- | ---: | --- |
@@ -37,7 +37,7 @@ Clustered mineral occurrences / mines (`data/occ.json`, ~7.9 MB, 109,872 points)
 | WA | 48,398 | DMIRS MINEDEX (CC BY-NC) |
 | TAS | 8,297 | MRT mineral occurrences |
 | NT | 3,487 | NTGS occurrences + mine sites |
-| QLD | 0 | MiningResources not in harvest |
+| QLD | 22,242 | GSQ MiningResources MINOCC + coal + petroleum |
 | SA | 0 | no occurrence points harvested |
 
 ## Drillholes

@@ -1,16 +1,24 @@
 {
-  "generated": "2026-08-18T09:35:22Z",
+  "generated": "2026-08-18T12:18:40Z",
   "occurrences": {
-    "bytes": 8201085,
-    "features": 109872,
+    "bytes": 9975229,
+    "features": 132114,
     "counts": {
       "nsw": 30898,
       "vic": 18792,
       "wa": 48398,
       "tas": 8297,
-      "nt": 3487
+      "nt": 3487,
+      "qld": 22242
     },
-    "skipped": {}
+    "skipped": {},
+    "qld_sources": {
+      "minocc_by_status_12": 21380,
+      "coal_2_101_105": 406,
+      "petroleum_19": 456,
+      "skipped_duplicate_layers": "14-17 (same sites as 12)",
+      "omitted": "KRA extractive polygons/lines (not occurrence points)"
+    }
   },
   "holes": {
     "bytes": 1155544,
@@ -38,12 +46,12 @@
     "hex_size_deg": 0.18
   },
   "omitted": {
-    "qld_occurrences": "QLD MiningResources not in harvest (titles only).",
     "sa_occurrences": "No SA mineral-occurrence points harvested (mineral_resource_potential is polygons; skipped).",
     "wa_nsw_raw_holes": "WA 3.46M and NSW 529k holes hex-aggregated, not loaded as points.",
     "nsw_geology_detailed": "NSW 1.7GB rock units and 89 province zips not added (kinds layer already covers NSW).",
     "vic_geol100": "80k-polygon geol100 / sg 250k not added; kinds + GA raster cover VIC.",
     "ga_2_5M": "GA 1:2.5M shapefile not added; kinds + live GA WMTS already present.",
-    "wa_dead_titles": "Already omitted (~510k)."
+    "wa_dead_titles": "Already omitted (~510k).",
+    "qld_kra": "QLD KRA extractive polygons/lines omitted (not occurrence points)."
   }
 }

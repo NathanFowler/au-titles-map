@@ -73,7 +73,11 @@
     "coarse aggregate": "construction",
     "coarse aggregate - armour stone": "construction",
     "coarse aggregate - sandstone": "construction",
-    agg: "construction", aggc: "construction"
+    agg: "construction", aggc: "construction",
+    gv: "construction", qr: "construction", aggreg: "construction",
+    "quarry rock": "construction", "building stone": "construction",
+    "foundry sand": "construction", "silica sand": "construction",
+    cnc: "coal"
   };
 
   const MINERAL_PHRASES = [
@@ -849,7 +853,7 @@
             cluster: true,
             clusterMaxZoom: 10,
             clusterRadius: 42,
-            attribution: "Occurrences: GSNSW / GSV / MRT / NTGS; WA MINEDEX CC BY-NC 4.0"
+            attribution: "Occurrences: GSNSW / GSQ / GSV / MRT / NTGS; WA MINEDEX CC BY-NC 4.0"
           });
           map.addLayer({
             id: "occ-clusters",
