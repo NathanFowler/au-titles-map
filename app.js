@@ -36,11 +36,27 @@
   const geoSearch = document.getElementById("geo-search");
   const kindsAll = document.getElementById("kinds-all");
   const kindsNone = document.getElementById("kinds-none");
+  const occMaster = document.getElementById("occ-master");
+  const occBox = document.getElementById("occ-toggles");
+  const holesMaster = document.getElementById("holes-master");
+  const holesBox = document.getElementById("holes-toggles");
+  const holesLegend = document.getElementById("holes-legend");
+  const gchemMaster = document.getElementById("gchem-master");
+  const gchemBox = document.getElementById("gchem-toggles");
+  const gchemLegend = document.getElementById("gchem-legend");
 
   let manifest = null;
   const layerMeta = {};
   let geoLoaded = false;
   let geoLoading = false;
+  let overlayManifest = null;
+  let occPack = null;
+  let occLoaded = false;
+  let occLoading = false;
+  let holesLoaded = false;
+  let holesLoading = false;
+  let gchemLoaded = false;
+  let gchemLoading = false;
 
   function log(msg) {
     statusEl.textContent = msg;
@@ -147,6 +163,57 @@
     const rows = pick.concat(extra.map(function (k) { return [k, props[k]]; }));
     return (
       '<div class="popup-title">GA surface geology</div>' +
+      rows
+        .map(function (r) {
+          return (
+            '<div class="popup-row"><span>' +
+            escapeHtml(String(r[0])) +
+            "</span><span>" +
+            escapeHtml(String(r[1])) +
+            "</span></div>"
+          );
+        })
+        .join("")
+    );
+  }
+
+  function occPopupHtml(props) {
+    const rows = [
+      ["State", props.state],
+      ["Commodity", props.comm],
+      ["Type", props.kind],
+      ["Status", props.status],
+      ["Licence", props.state === "wa" ? "WA MINEDEX CC BY-NC 4.0" : ""]
+    ].filter(function (r) { return r[1] != null && String(r[1]).trim() !== ""; });
+    const title = props.name || props.comm || "Occurrence";
+    return (
+      '<div class="popup-title">' +
+      escapeHtml(String(title)) +
+      "</div>" +
+      rows
+        .map(function (r) {
+          return (
+            '<div class="popup-row"><span>' +
+            escapeHtml(String(r[0])) +
+            "</span><span>" +
+            escapeHtml(String(r[1])) +
+            "</span></div>"
+          );
+        })
+        .join("")
+    );
+  }
+
+  function hexPopupHtml(props, label) {
+    const rows = [
+      ["State", props.state ? String(props.state).toUpperCase() : ""],
+      [label, props.n != null ? Number(props.n).toLocaleString() : ""],
+      ["Cell", "~20 km hex (aggregated)"]
+    ].filter(function (r) { return r[1] != null && String(r[1]).trim() !== ""; });
+    return (
+      '<div class="popup-title">' +
+      escapeHtml(label + " density") +
+      "</div>" +
       rows
         .map(function (r) {
           return (
@@ -468,6 +535,300 @@
     return ids;
   }
 
+  function overlayCounts(kind) {
+    const o = overlayManifest || {};
+    if (kind === "occ") return ((o.occurrences || {}).counts) || {};
+    if (kind === "holes") return ((o.holes || {}).raw) || {};
+    if (kind === "gchem") return ((o.geochem || {}).raw) || {};
+    return {};
+  }
+
+  function buildStateMini(box, kind, counts) {
+    box.innerHTML = "";
+    STATES.forEach(function (s) {
+      const n = counts[s.id] || 0;
+      const lab = document.createElement("label");
+      lab.className = "row";
+      lab.innerHTML =
+        '<input type="checkbox" checked data-ov="' +
+        kind +
+        '" data-state="' +
+        s.id +
+        '" ' +
+        (n ? "" : "disabled") +
+        " />" +
+        '<span class="swatch' +
+        (kind === "occ" ? " round" : "") +
+        '" style="background:' +
+        s.color +
+        '"></span>' +
+        "<span>" +
+        s.name +
+        (n ? " (" + Number(n).toLocaleString() + ")" : "") +
+        "</span>";
+      box.appendChild(lab);
+    });
+    box.addEventListener("change", function () {
+      if (kind === "occ") applyOccFilter();
+      else if (kind === "holes") applyHexFilter("holes");
+      else applyHexFilter("gchem");
+    });
+  }
+
+  function selectedOverlayStates(box) {
+    return Array.prototype.slice
+      .call(box.querySelectorAll('input[type="checkbox"]'))
+      .filter(function (inp) { return inp.checked && !inp.disabled; })
+      .map(function (inp) { return inp.getAttribute("data-state"); });
+  }
+
+  function occToGJ(pack, states) {
+    const allow = {};
+    (states || []).forEach(function (s) { allow[s] = true; });
+    const feats = [];
+    (pack.rows || []).forEach(function (r) {
+      if (!allow[r[0]]) return;
+      feats.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [r[1], r[2]] },
+        properties: {
+          state: r[0],
+          name: r[3] || "",
+          comm: r[4] || "",
+          kind: r[5] || "",
+          status: r[6] || ""
+        }
+      });
+    });
+    return { type: "FeatureCollection", features: feats };
+  }
+
+  function stateColorExpr() {
+    const expr = ["match", ["get", "state"]];
+    STATES.forEach(function (s) {
+      expr.push(s.id, s.color);
+    });
+    expr.push("#d4d4d8");
+    return expr;
+  }
+
+  function hexColorExpr(kind) {
+    if (kind === "gchem") {
+      return [
+        "interpolate", ["linear"], ["log10", ["max", 1, ["get", "n"]]],
+        0, "#3c096c",
+        1, "#7b2cbf",
+        2, "#c77dff",
+        3, "#e0aaff",
+        4, "#ff9e00",
+        5, "#ff6d00"
+      ];
+    }
+    return [
+      "interpolate", ["linear"], ["log10", ["max", 1, ["get", "n"]]],
+      0, "#1b4d6e",
+      1, "#2a9d8f",
+      2, "#e9c46a",
+      3, "#f4a261",
+      4, "#e76f51",
+      5, "#9b2226"
+    ];
+  }
+
+  function underTitlesId() {
+    return firstTitleLayerId();
+  }
+
+  function applyHexFilter(kind) {
+    const layer = kind === "holes" ? "holes-hex" : "gchem-hex";
+    const master = kind === "holes" ? holesMaster : gchemMaster;
+    const box = kind === "holes" ? holesBox : gchemBox;
+    if (!map.getLayer(layer)) return;
+    if (!master.checked) {
+      map.setLayoutProperty(layer, "visibility", "none");
+      return;
+    }
+    const states = selectedOverlayStates(box);
+    map.setLayoutProperty(layer, "visibility", "visible");
+    if (!states.length) {
+      map.setFilter(layer, ["==", ["get", "state"], "__none__"]);
+    } else {
+      map.setFilter(layer, ["in", ["get", "state"], ["literal", states]]);
+    }
+  }
+
+  function applyOccFilter() {
+    if (!occPack || !map.getSource("occ")) return;
+    if (!occMaster.checked) {
+      ["occ-clusters", "occ-cluster-count", "occ-point"].forEach(function (id) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
+      });
+      return;
+    }
+    const gj = occToGJ(occPack, selectedOverlayStates(occBox));
+    map.getSource("occ").setData(gj);
+    ["occ-clusters", "occ-cluster-count", "occ-point"].forEach(function (id) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "visible");
+    });
+  }
+
+  function loadOccurrences() {
+    if (occLoaded) {
+      applyOccFilter();
+      return Promise.resolve();
+    }
+    if (occLoading) return Promise.resolve();
+    occLoading = true;
+    log("Loading occurrences…");
+    return fetch("data/occ.json")
+      .then(function (r) {
+        if (!r.ok) throw new Error("occ.json HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (pack) {
+        occPack = pack;
+        const gj = occToGJ(pack, selectedOverlayStates(occBox));
+        if (!map.getSource("occ")) {
+          map.addSource("occ", {
+            type: "geojson",
+            data: gj,
+            cluster: true,
+            clusterMaxZoom: 10,
+            clusterRadius: 42,
+            attribution: "Occurrences: GSNSW / GSV / MRT / NTGS; WA MINEDEX CC BY-NC 4.0"
+          });
+          map.addLayer({
+            id: "occ-clusters",
+            type: "circle",
+            source: "occ",
+            filter: ["has", "point_count"],
+            paint: {
+              "circle-color": "#f2c14e",
+              "circle-radius": ["step", ["get", "point_count"], 12, 25, 16, 100, 20, 500, 26],
+              "circle-opacity": 0.82,
+              "circle-stroke-width": 1,
+              "circle-stroke-color": "#1b2430"
+            }
+          });
+          map.addLayer({
+            id: "occ-cluster-count",
+            type: "symbol",
+            source: "occ",
+            filter: ["has", "point_count"],
+            layout: {
+              "text-field": ["get", "point_count_abbreviated"],
+              "text-size": 11
+            },
+            paint: { "text-color": "#1b2430" }
+          });
+          map.addLayer({
+            id: "occ-point",
+            type: "circle",
+            source: "occ",
+            filter: ["!", ["has", "point_count"]],
+            paint: {
+              "circle-color": stateColorExpr(),
+              "circle-radius": 4.2,
+              "circle-opacity": 0.9,
+              "circle-stroke-width": 0.8,
+              "circle-stroke-color": "#0b1220"
+            }
+          });
+          map.on("mouseenter", "occ-point", function () {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", "occ-point", function () {
+            map.getCanvas().style.cursor = "";
+          });
+          map.on("click", "occ-clusters", function (e) {
+            const f = (e.features || [])[0];
+            if (!f) return;
+            map.getSource("occ").getClusterExpansionZoom(f.properties.cluster_id).then(function (z) {
+              map.easeTo({ center: f.geometry.coordinates, zoom: z });
+            });
+          });
+        } else {
+          map.getSource("occ").setData(gj);
+        }
+        occLoaded = true;
+        occLoading = false;
+        applyOccFilter();
+        const n = ((pack.rows || []).length);
+        log("Occurrences loaded (" + n.toLocaleString() + "). WA MINEDEX is CC BY-NC.");
+      })
+      .catch(function (err) {
+        occLoading = false;
+        occMaster.checked = false;
+        log("Failed occurrences: " + err.message);
+      });
+  }
+
+  function loadHex(kind) {
+    const loaded = kind === "holes" ? holesLoaded : gchemLoaded;
+    const loading = kind === "holes" ? holesLoading : gchemLoading;
+    if (loaded) {
+      applyHexFilter(kind);
+      return Promise.resolve();
+    }
+    if (loading) return Promise.resolve();
+    if (kind === "holes") holesLoading = true;
+    else gchemLoading = true;
+    const file = kind === "holes" ? "data/holes_hex.geojson" : "data/geochem_hex.geojson";
+    const sid = kind === "holes" ? "holes-hex" : "gchem-hex";
+    const lid = sid;
+    log("Loading " + kind + " density…");
+    return fetch(file)
+      .then(function (r) {
+        if (!r.ok) throw new Error(file + " HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (gj) {
+        if (!map.getSource(sid)) {
+          map.addSource(sid, { type: "geojson", data: gj, attribution: kind === "holes" ? "Drillhole density from state open-file collars (aggregated)" : "Geochem sample density from state open data (aggregated)" });
+          map.addLayer(
+            {
+              id: lid,
+              type: "fill",
+              source: sid,
+              paint: {
+                "fill-color": hexColorExpr(kind),
+                "fill-opacity": 0.45,
+                "fill-outline-color": "rgba(255,255,255,0.18)"
+              }
+            },
+            underTitlesId()
+          );
+          map.on("mouseenter", lid, function () {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", lid, function () {
+            map.getCanvas().style.cursor = "";
+          });
+        } else {
+          map.getSource(sid).setData(gj);
+        }
+        if (kind === "holes") {
+          holesLoaded = true;
+          holesLoading = false;
+        } else {
+          gchemLoaded = true;
+          gchemLoading = false;
+        }
+        applyHexFilter(kind);
+        log(kind + " density loaded (" + ((gj.features || []).length).toLocaleString() + " hexes).");
+      })
+      .catch(function (err) {
+        if (kind === "holes") {
+          holesLoading = false;
+          holesMaster.checked = false;
+        } else {
+          gchemLoading = false;
+          gchemMaster.checked = false;
+        }
+        log("Failed " + kind + ": " + err.message);
+      });
+  }
+
   function onToggle(ev) {
     const t = ev.target;
     if (t.tagName !== "INPUT") return;
@@ -588,12 +949,65 @@
     applyGeoFilter();
   });
 
+  occMaster.addEventListener("change", function () {
+    if (occMaster.checked) {
+      occBox.classList.remove("disabled");
+      loadOccurrences();
+    } else {
+      occBox.classList.add("disabled");
+      applyOccFilter();
+    }
+  });
+  holesMaster.addEventListener("change", function () {
+    if (holesMaster.checked) {
+      holesBox.classList.remove("disabled");
+      if (holesLegend) holesLegend.hidden = false;
+      loadHex("holes");
+    } else {
+      holesBox.classList.add("disabled");
+      if (holesLegend) holesLegend.hidden = true;
+      applyHexFilter("holes");
+    }
+  });
+  gchemMaster.addEventListener("change", function () {
+    if (gchemMaster.checked) {
+      gchemBox.classList.remove("disabled");
+      if (gchemLegend) gchemLegend.hidden = false;
+      loadHex("gchem");
+    } else {
+      gchemBox.classList.add("disabled");
+      if (gchemLegend) gchemLegend.hidden = true;
+      applyHexFilter("gchem");
+    }
+  });
+
   map.on("click", function (e) {
     const tLayers = titleFillIds();
     if (tLayers.length) {
       const titles = map.queryRenderedFeatures(e.point, { layers: tLayers });
       if (titles.length) {
         popup.setLngLat(e.lngLat).setHTML(popupHtml(titles[0].properties || {})).addTo(map);
+        return;
+      }
+    }
+    if (map.getLayer("occ-point") && occMaster.checked) {
+      const occs = map.queryRenderedFeatures(e.point, { layers: ["occ-point"] });
+      if (occs.length) {
+        popup.setLngLat(e.lngLat).setHTML(occPopupHtml(occs[0].properties || {})).addTo(map);
+        return;
+      }
+    }
+    if (map.getLayer("holes-hex") && holesMaster.checked) {
+      const hx = map.queryRenderedFeatures(e.point, { layers: ["holes-hex"] });
+      if (hx.length) {
+        popup.setLngLat(e.lngLat).setHTML(hexPopupHtml(hx[0].properties || {}, "Holes")).addTo(map);
+        return;
+      }
+    }
+    if (map.getLayer("gchem-hex") && gchemMaster.checked) {
+      const gx = map.queryRenderedFeatures(e.point, { layers: ["gchem-hex"] });
+      if (gx.length) {
+        popup.setLngLat(e.lngLat).setHTML(hexPopupHtml(gx[0].properties || {}, "Samples")).addTo(map);
         return;
       }
     }
@@ -612,6 +1026,19 @@
   map.on("load", function () {
     buildKindToggles();
     if (osmToggle.checked) ensureOsm(true);
+    fetch("data/overlay_manifest.json")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (o) {
+        overlayManifest = o || {};
+        buildStateMini(occBox, "occ", overlayCounts("occ"));
+        buildStateMini(holesBox, "holes", overlayCounts("holes"));
+        buildStateMini(gchemBox, "gchem", overlayCounts("gchem"));
+      })
+      .catch(function () {
+        buildStateMini(occBox, "occ", {});
+        buildStateMini(holesBox, "holes", {});
+        buildStateMini(gchemBox, "gchem", {});
+      });
     fetch("data/manifest.json")
       .then(function (r) {
         if (!r.ok) throw new Error("manifest.json HTTP " + r.status);
@@ -646,7 +1073,7 @@
               live.toLocaleString() +
               "\nDead available: " +
               dead.toLocaleString() +
-              "\nTurn on Geology kinds to filter granite, sandstone, etc.\nClick a polygon for attributes."
+              "\nOverlays: occurrences, drillhole density, geochem density.\nGeology/holes draw under titles; title clicks win."
           );
         });
       })

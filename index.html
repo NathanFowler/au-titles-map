@@ -20,20 +20,7 @@
     </section>
 
     <section>
-      <h2>Geology</h2>
-      <label class="row"><input type="checkbox" id="ga-geol" /> Geology (GA) raster backdrop</label>
-      <label class="row"><input type="checkbox" id="geo-kinds" /> Kind polygons (filterable)</label>
-      <input type="search" id="geo-search" placeholder="Search formation / unit name" autocomplete="off" />
-      <div class="kind-actions">
-        <button type="button" id="kinds-all">All kinds</button>
-        <button type="button" id="kinds-none">None</button>
-      </div>
-      <div id="kind-toggles" class="disabled"></div>
-      <p class="note">Kinds from state geology (NSW/QLD/VIC/TAS/NT/SA). WA/ACT: GA raster only. Titles stay on top.</p>
-    </section>
-
-    <section>
-      <h2>Live titles <span class="hint">on by default</span></h2>
+      <h2>Titles <span class="hint">on by default</span></h2>
       <div id="live-toggles"></div>
     </section>
 
@@ -45,12 +32,56 @@
     </section>
 
     <section>
+      <h2>Geology</h2>
+      <label class="row"><input type="checkbox" id="ga-geol" /> Geology (GA) raster backdrop</label>
+      <label class="row"><input type="checkbox" id="geo-kinds" /> Kind polygons (filterable)</label>
+      <input type="search" id="geo-search" placeholder="Search formation / unit name" autocomplete="off" />
+      <div class="kind-actions">
+        <button type="button" id="kinds-all">All kinds</button>
+        <button type="button" id="kinds-none">None</button>
+      </div>
+      <div id="kind-toggles" class="disabled"></div>
+      <p class="note">Kinds from state geology (NSW/QLD/VIC/TAS/NT/SA). WA/ACT: GA raster only. Extra raw geology zips omitted. Titles stay on top.</p>
+    </section>
+
+    <section>
+      <h2>Occurrences</h2>
+      <label class="row"><input type="checkbox" id="occ-master" /> Mineral occurrences / mines</label>
+      <div id="occ-toggles" class="disabled"></div>
+      <p class="note">NSW / VIC / TAS / NT / WA. QLD MiningResources and SA occurrence points were not in the harvest. <strong>WA MINEDEX is CC BY-NC 4.0</strong> (no commercial reuse).</p>
+    </section>
+
+    <section>
+      <h2>Drillholes</h2>
+      <label class="row"><input type="checkbox" id="holes-master" /> Density hex (~20 km)</label>
+      <div id="holes-toggles" class="disabled"></div>
+      <div class="legend" id="holes-legend" hidden>
+        <span>few</span>
+        <span class="ramp holes"></span>
+        <span>many</span>
+      </div>
+      <p class="note">Aggregated from WA 3.46M, NSW 529k, VIC, SA, TAS, NT. Raw points are not loaded. No QLD holes in harvest. Click a hex for the count.</p>
+    </section>
+
+    <section>
+      <h2>Geochem</h2>
+      <label class="row"><input type="checkbox" id="gchem-master" /> Sample density hex (~20 km)</label>
+      <div id="gchem-toggles" class="disabled"></div>
+      <div class="legend" id="gchem-legend" hidden>
+        <span>few</span>
+        <span class="ramp gchem"></span>
+        <span>many</span>
+      </div>
+      <p class="note">Coarse density from NSW assays, VIC geochemistry, NT soils/streams/rocks, SA max-downhole, TAS samples. Raw assays omitted. No QLD/WA geochem pack in harvest.</p>
+    </section>
+
+    <section>
       <h2>Status</h2>
       <pre id="status">Loading…</pre>
     </section>
 
     <footer>
-      <p>Titles: official state feeds. Geology kinds: GSNSW / GSQ / GSV / MRT / NTGS / SARIG. Raster: Geoscience Australia Surface Geology (CC BY 4.0). WA dead titles omitted for performance.</p>
+      <p>Titles: official state feeds. Geology kinds: GSNSW / GSQ / GSV / MRT / NTGS / SARIG. Raster: Geoscience Australia Surface Geology (CC BY 4.0). Occurrences: GSNSW, GSV, MRT, NTGS, WA MINEDEX (CC BY-NC). Holes/geochem shown as density only. WA dead titles omitted.</p>
     </footer>
   </aside>
   <div id="map"></div>

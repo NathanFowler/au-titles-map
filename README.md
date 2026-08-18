@@ -16,3 +16,42 @@ Coverage: NSW, QLD, VIC, TAS, NT, SA. **WA and ACT** have no kind polygons (GA r
 Popup fields: state, kind, unit name, source field.
 
 Geology draws under titles so title clicks stay first.
+
+
+## Occurrences
+
+Clustered mineral occurrences / mines (`data/occ.json`, ~7.9 MB, 109,872 points). Per-state toggles. Popup fields from source: name, commodity, type, status. **WA MINEDEX is CC BY-NC 4.0.**
+
+| State | Points | Source |
+| --- | ---: | --- |
+| NSW | 30,898 | GSNSW `mineral_occurrence` |
+| VIC | 18,792 | GSV `minsite` |
+| WA | 48,398 | DMIRS MINEDEX (CC BY-NC) |
+| TAS | 8,297 | MRT mineral occurrences |
+| NT | 3,487 | NTGS occurrences + mine sites |
+| QLD | 0 | MiningResources not in harvest |
+| SA | 0 | no occurrence points harvested |
+
+## Drillholes
+
+~20 km hex density (`data/holes_hex.geojson`, ~1.2 MB, 4,774 cells). Raw WA 3.46M / NSW 529k / others are **not** loaded as points. Click a hex for the aggregated count. Per-state toggles. Draws under titles.
+
+| State | Raw collars binned |
+| --- | ---: |
+| WA | 3,436,952 |
+| NSW | 529,290 |
+| NT | 328,961 |
+| SA | 200,213 |
+| VIC | 148,290 |
+| TAS | 39,760 |
+| QLD | 0 (not harvested) |
+
+## Geochem
+
+Same hex size (`data/geochem_hex.geojson`, ~614 KB, 2,569 cells). Density of open-file samples (NSW assays, VIC geochemistry, NT soils/streams/rocks, SA max-downhole, TAS samples). Raw assay tables omitted. No QLD or WA geochem pack in the harvest.
+
+## Omitted on purpose
+
+- Harvest corpus (~15 GB) is not in this repo.
+- NSW 1.7 GB detailed geology, 89 province zips, VIC geol100 / sg 250k, GA 1:2.5M shapefile — kinds + GA WMTS already cover geology.
+- WA dead titles (~510k) still omitted.
