@@ -25,6 +25,75 @@
     { id: "other", label: "other", color: "#9aa0a6" }
   ];
 
+
+  // Mineral types from occ.json comm tokens (not invented). Titles have no commodity field.
+  const MINERALS = [
+    { id: "gold", label: "gold", color: "#f2c14e" },
+    { id: "copper", label: "copper", color: "#e07a3d" },
+    { id: "silver", label: "silver", color: "#c9d1d9" },
+    { id: "iron", label: "iron", color: "#c44e52" },
+    { id: "lead", label: "lead", color: "#7a8490" },
+    { id: "zinc", label: "zinc", color: "#5dade2" },
+    { id: "tin", label: "tin", color: "#8fa38a" },
+    { id: "nickel", label: "nickel", color: "#2a9d8f" },
+    { id: "coal", label: "coal", color: "#5c5346" },
+    { id: "lithium", label: "lithium", color: "#9b5de5" },
+    { id: "uranium", label: "uranium", color: "#8bc34a" },
+    { id: "manganese", label: "manganese", color: "#c47ac0" },
+    { id: "tungsten", label: "tungsten", color: "#5c6bc0" },
+    { id: "diamond", label: "diamond", color: "#80deea" },
+    { id: "construction", label: "construction", color: "#d4b483" },
+    { id: "other", label: "other", color: "#9aa0a6" }
+  ];
+
+  const MINERAL_EXACT = {
+    au: "gold", gold: "gold",
+    cu: "copper", copper: "copper",
+    ag: "silver", silver: "silver",
+    fe: "iron", iron: "iron", "iron ore": "iron", mag: "iron", magnetite: "iron",
+    feore: "iron", fe2o3: "iron", "iron oxides - magnetite": "iron", "iron oxides": "iron",
+    pb: "lead", lead: "lead",
+    zn: "zinc", zinc: "zinc",
+    sn: "tin", tin: "tin", sno2: "tin",
+    ni: "nickel", nickel: "nickel",
+    coal: "coal", "coal -general": "coal", "coal - general": "coal",
+    "thermal coal": "coal", "coal-general": "coal",
+    li: "lithium", lithium: "lithium",
+    u: "uranium", uranium: "uranium",
+    mn: "manganese", manganese: "manganese",
+    w: "tungsten", tungsten: "tungsten",
+    dmd: "diamond", diamond: "diamond", "diamond - gem": "diamond",
+    "unprocessed construction materials": "construction",
+    "gravel - aggregate": "construction", gvl: "construction", sd: "construction",
+    sand: "construction", "sand - construction": "construction",
+    "sand and gravel": "construction", gravel: "construction",
+    "gravel - undifferentiated": "construction",
+    "coarse aggregate - hard rock": "construction",
+    "coarse aggregate - river gravel": "construction",
+    "coarse aggregate": "construction",
+    "coarse aggregate - armour stone": "construction",
+    "coarse aggregate - sandstone": "construction",
+    agg: "construction", aggc: "construction"
+  };
+
+  const MINERAL_PHRASES = [
+    ["gold", ["gold"]],
+    ["copper", ["copper"]],
+    ["silver", ["silver"]],
+    ["iron", ["iron", "magnetite"]],
+    ["lead", ["lead"]],
+    ["zinc", ["zinc"]],
+    ["tin", ["tin"]],
+    ["nickel", ["nickel"]],
+    ["coal", ["coal"]],
+    ["lithium", ["lithium"]],
+    ["uranium", ["uranium"]],
+    ["manganese", ["manganese"]],
+    ["tungsten", ["tungsten"]],
+    ["diamond", ["diamond"]],
+    ["construction", ["construction", "aggregate", "gravel"]]
+  ];
+
   const statusEl = document.getElementById("status");
   const liveBox = document.getElementById("live-toggles");
   const deadBox = document.getElementById("dead-toggles");
@@ -36,6 +105,9 @@
   const geoSearch = document.getElementById("geo-search");
   const kindsAll = document.getElementById("kinds-all");
   const kindsNone = document.getElementById("kinds-none");
+  const mineralBox = document.getElementById("mineral-toggles");
+  const minsAll = document.getElementById("mins-all");
+  const minsNone = document.getElementById("mins-none");
   const occMaster = document.getElementById("occ-master");
   const occBox = document.getElementById("occ-toggles");
   const holesMaster = document.getElementById("holes-master");
@@ -349,6 +421,77 @@
     deadBox.addEventListener("change", onToggle);
   }
 
+  function buildMineralToggles() {
+    MINERALS.forEach(function (m) {
+      const lab = document.createElement("label");
+      lab.className = "row";
+      lab.innerHTML =
+        '<input type="checkbox" checked data-mineral="' +
+        m.id +
+        '" />' +
+        '<span class="swatch" style="background:' +
+        m.color +
+        '"></span>' +
+        "<span>" +
+        m.label +
+        "</span>";
+      mineralBox.appendChild(lab);
+    });
+    mineralBox.addEventListener("change", applyOccFilter);
+  }
+
+  function selectedMinerals() {
+    return Array.prototype.slice
+      .call(mineralBox.querySelectorAll('input[type="checkbox"]'))
+      .filter(function (inp) { return inp.checked; })
+      .map(function (inp) { return inp.getAttribute("data-mineral"); });
+  }
+
+  function normMineralToken(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/\u2026/g, "")
+      .replace(/[.;:]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function lookupMineral(token) {
+    if (MINERAL_EXACT[token]) return MINERAL_EXACT[token];
+    if (token === "sand" || token.indexOf("sand -") === 0 || token.indexOf("sand and") === 0) {
+      if (token.indexOf("mineral") === -1) return "construction";
+    }
+    if (token.indexOf("unprocess") === 0) return "construction";
+    if (token.indexOf("coarse aggregate") === 0) return "construction";
+    for (let i = 0; i < MINERAL_PHRASES.length; i++) {
+      const mid = MINERAL_PHRASES[i][0];
+      const phrases = MINERAL_PHRASES[i][1];
+      for (let j = 0; j < phrases.length; j++) {
+        if (token.indexOf(phrases[j]) !== -1) {
+          if (mid === "construction" && token.indexOf("mineral sand") !== -1) continue;
+          return mid;
+        }
+      }
+    }
+    return null;
+  }
+
+  function mineralIdsFromComm(comm) {
+    const raw = String(comm || "").trim();
+    const n = normMineralToken(raw);
+    if (!raw || n === "unknown" || n === "un" || n === "unk") return ["other"];
+    const parts = raw.split(/[,;/|+&]+|\band\b/i);
+    const ids = {};
+    for (let i = 0; i < parts.length; i++) {
+      const t = normMineralToken(parts[i]);
+      if (!t) continue;
+      const mid = lookupMineral(t);
+      if (mid) ids[mid] = true;
+    }
+    const keys = Object.keys(ids);
+    return keys.length ? keys : ["other"];
+  }
+
   function buildKindToggles() {
     KINDS.forEach(function (k) {
       const lab = document.createElement("label");
@@ -585,9 +728,17 @@
   function occToGJ(pack, states) {
     const allow = {};
     (states || []).forEach(function (s) { allow[s] = true; });
+    const allowMin = {};
+    selectedMinerals().forEach(function (m) { allowMin[m] = true; });
     const feats = [];
     (pack.rows || []).forEach(function (r) {
       if (!allow[r[0]]) return;
+      const types = r._mins || mineralIdsFromComm(r[4]);
+      let ok = false;
+      for (let i = 0; i < types.length; i++) {
+        if (allowMin[types[i]]) { ok = true; break; }
+      }
+      if (!ok) return;
       feats.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: [r[1], r[2]] },
@@ -687,6 +838,9 @@
       })
       .then(function (pack) {
         occPack = pack;
+        (pack.rows || []).forEach(function (r) {
+          r._mins = mineralIdsFromComm(r[4]);
+        });
         const gj = occToGJ(pack, selectedOverlayStates(occBox));
         if (!map.getSource("occ")) {
           map.addSource("occ", {
@@ -949,6 +1103,19 @@
     applyGeoFilter();
   });
 
+  minsAll.addEventListener("click", function () {
+    mineralBox.querySelectorAll('input[type="checkbox"]').forEach(function (inp) {
+      inp.checked = true;
+    });
+    applyOccFilter();
+  });
+  minsNone.addEventListener("click", function () {
+    mineralBox.querySelectorAll('input[type="checkbox"]').forEach(function (inp) {
+      inp.checked = false;
+    });
+    applyOccFilter();
+  });
+
   occMaster.addEventListener("change", function () {
     if (occMaster.checked) {
       occBox.classList.remove("disabled");
@@ -1025,6 +1192,7 @@
 
   map.on("load", function () {
     buildKindToggles();
+    buildMineralToggles();
     if (osmToggle.checked) ensureOsm(true);
     fetch("data/overlay_manifest.json")
       .then(function (r) { return r.ok ? r.json() : null; })

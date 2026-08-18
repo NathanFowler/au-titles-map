@@ -18,9 +18,17 @@ Popup fields: state, kind, unit name, source field.
 Geology draws under titles so title clicks stay first.
 
 
+## Mineral type
+
+Sidebar filter matching the geology-kinds UI (All / None, two-column checkboxes, color swatches). Built from the existing occurrence `comm` field — types were not invented.
+
+Filter list (16): gold, copper, silver, iron, lead, zinc, tin, nickel, coal, lithium, uranium, manganese, tungsten, diamond, construction (sand / gravel / aggregate), other (rare, unknown, industrial).
+
+Applies to **occurrences only**. Title GeoJSON layers have holder / tenure / status / name / dates — no commodity field. Multi-commodity points stay visible if any selected type matches. All types on by default.
+
 ## Occurrences
 
-Clustered mineral occurrences / mines (`data/occ.json`, ~7.9 MB, 109,872 points). Per-state toggles. Popup fields from source: name, commodity, type, status. **WA MINEDEX is CC BY-NC 4.0.**
+Clustered mineral occurrences / mines (`data/occ.json`, ~7.9 MB, 109,872 points). Per-state toggles plus mineral-type filter. Popup fields from source: name, commodity, type, status. **WA MINEDEX is CC BY-NC 4.0.**
 
 | State | Points | Source |
 | --- | ---: | --- |

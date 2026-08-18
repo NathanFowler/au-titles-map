@@ -25,8 +25,8 @@ footer { margin-top: 18px; font-size: 0.72rem; color: #6b7785; line-height: 1.4;
 .kind-actions { display: flex; gap: 8px; margin: 0 0 6px; }
 .kind-actions button { background: #1e2733; color: #c5d0db; border: 1px solid #2a3441; border-radius: 4px; font-size: 0.72rem; padding: 3px 8px; cursor: pointer; }
 .kind-actions button:hover { background: #263140; }
-#kind-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6px; }
-#kind-toggles .row { font-size: 0.78rem; margin: 2px 0; }
+#kind-toggles, #mineral-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6px; }
+#kind-toggles .row, #mineral-toggles .row { font-size: 0.78rem; margin: 2px 0; }
 #occ-toggles, #holes-toggles, #gchem-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6px; }
 #occ-toggles .row, #holes-toggles .row, #gchem-toggles .row { font-size: 0.78rem; margin: 2px 0; }
 .legend { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 0.68rem; color: #8a97a6; }
