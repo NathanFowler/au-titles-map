@@ -1,8 +1,8 @@
-# AU titles map
+# Xplorr
 
 National live mining and exploration titles, stitched from official state feeds.
 
-Live: https://nathanfowler.github.io/au-titles-map/
+Live: https://nathanfowler.github.io/xplorr/
 
 ## Geology
 
