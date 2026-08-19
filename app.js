@@ -139,7 +139,12 @@
   let gchemLoading = false;
   let findQuery = "";
   let occIndexed = false;
+  let holesIndexed = false;
+  let gchemIndexed = false;
+  let findUserPicked = false;
+  const findHexKinds = { holes: false, gchem: false };
   const findIndex = [];
+  const FIND_LIST_CAP = { title: 30, occ: 20, holes: 12, gchem: 12 };
   const DEMO_NA = "DEMO — n/a";
   const DEMO_HOLDERS = [
     "DEMO Acme Gold Pty Ltd",
@@ -341,9 +346,98 @@
     return n ? [xs / n, ys / n] : null;
   }
 
+  function isDemoFlag(v) {
+    return v === true || v === "true" || v === 1 || v === "1";
+  }
+
+  function isDemoString(v) {
+    return String(v || "").trim().toUpperCase().indexOf("DEMO") === 0;
+  }
+
+  function addSearchText(out, v) {
+    const s = String(v == null ? "" : v).trim();
+    if (!s || isDemoString(s)) return;
+    out.push(s.toLowerCase());
+  }
+
+  function findTexts(it) {
+    const p = it.props || {};
+    const out = [];
+    if (it.kind === "title") {
+      addSearchText(out, it.name || p.name);
+      addSearchText(out, it.tenure || p.tenure);
+      addSearchText(out, it.holder || p.holder);
+      addSearchText(out, p.licensee);
+      addSearchText(out, p.operator);
+      addSearchText(out, p.company);
+    } else if (it.kind === "occ") {
+      addSearchText(out, it.name || p.name);
+      addSearchText(out, it.comm || p.comm);
+      addSearchText(out, p.company);
+      addSearchText(out, p.operator);
+      addSearchText(out, p.owner);
+    } else {
+      addSearchText(out, p.top_operators || it.operator);
+      addSearchText(out, p.company);
+      addSearchText(out, p.operator);
+    }
+    return out;
+  }
+
+  function itemIsDemo(it) {
+    const p = it.props || {};
+    return isDemoFlag(it.demo) || isDemoFlag(p.demo);
+  }
+
+  function itemMatches(it, q) {
+    if (!q || itemIsDemo(it)) return false;
+    const texts = findTexts(it);
+    for (let i = 0; i < texts.length; i++) {
+      if (texts[i].indexOf(q) !== -1) return true;
+    }
+    return false;
+  }
+
+  function occRowMatches(r, q) {
+    if (!q) return true;
+    if (isDemoFlag(r[7])) return false;
+    const texts = [];
+    addSearchText(texts, r[3]);
+    addSearchText(texts, r[4]);
+    addSearchText(texts, r.company);
+    addSearchText(texts, r.operator);
+    addSearchText(texts, r.owner);
+    for (let i = 0; i < texts.length; i++) {
+      if (texts[i].indexOf(q) !== -1) return true;
+    }
+    return false;
+  }
+
+  function titleSearchFilter(q) {
+    return [
+      "any",
+      ["in", q, ["downcase", ["to-string", ["get", "name"]]]],
+      ["in", q, ["downcase", ["to-string", ["get", "holder"]]]],
+      ["in", q, ["downcase", ["to-string", ["get", "tenure"]]]],
+      ["in", q, ["downcase", ["to-string", ["get", "licensee"]]]],
+      ["in", q, ["downcase", ["to-string", ["get", "operator"]]]],
+      ["in", q, ["downcase", ["to-string", ["get", "company"]]]]
+    ];
+  }
+
+  function hexCompanyFilter(q) {
+    return [
+      "any",
+      ["in", q, ["downcase", ["to-string", ["get", "top_operators"]]]],
+      ["in", q, ["downcase", ["to-string", ["get", "company"]]]],
+      ["in", q, ["downcase", ["to-string", ["get", "operator"]]]]
+    ];
+  }
+
   function indexTitleFeatures(state, life, gj) {
     (gj.features || []).forEach(function (f) {
       const p = f.properties || {};
+      if (isDemoFlag(p.demo)) return;
       const c = geomCenter(f.geometry);
       if (!c) return;
       findIndex.push({
@@ -355,6 +449,7 @@
         tenure: p.tenure || "",
         lng: c[0],
         lat: c[1],
+        demo: isDemoFlag(p.demo),
         props: p
       });
     });
@@ -364,6 +459,7 @@
     if (occIndexed) return;
     occIndexed = true;
     (pack.rows || []).forEach(function (r) {
+      const demo = isDemoFlag(r[7]);
       findIndex.push({
         kind: "occ",
         state: r[0],
@@ -371,14 +467,44 @@
         comm: r[4] || "",
         lng: r[1],
         lat: r[2],
+        demo: demo,
         props: {
           state: r[0],
           name: r[3] || "",
           comm: r[4] || "",
           kind: r[5] || "",
           status: r[6] || "",
-          demo: r[7] === true || r[7] === 1
+          demo: demo
         }
+      });
+    });
+  }
+
+  function indexHexFeatures(kind, gj) {
+    if (kind === "holes" && holesIndexed) return;
+    if (kind === "gchem" && gchemIndexed) return;
+    if (kind === "holes") holesIndexed = true;
+    else gchemIndexed = true;
+    (gj.features || []).forEach(function (f) {
+      const p = f.properties || {};
+      if (isDemoFlag(p.demo)) return;
+      let lng = p.lon;
+      let lat = p.lat;
+      if (lng == null || lat == null) {
+        const c = geomCenter(f.geometry);
+        if (!c) return;
+        lng = c[0];
+        lat = c[1];
+      }
+      findIndex.push({
+        kind: kind,
+        state: p.state || "",
+        name: (p.n != null ? Number(p.n).toLocaleString() + " " : "") + (kind === "holes" ? "holes" : "samples"),
+        operator: p.top_operators || "",
+        lng: lng,
+        lat: lat,
+        demo: isDemoFlag(p.demo),
+        props: p
       });
     });
   }
@@ -401,70 +527,229 @@
           map.setFilter(line, null);
           return;
         }
-        const f = [
-          "any",
-          ["in", q, ["downcase", ["to-string", ["get", "name"]]]],
-          ["in", q, ["downcase", ["to-string", ["get", "holder"]]]],
-          ["in", q, ["downcase", ["to-string", ["get", "tenure"]]]]
-        ];
+        const f = titleSearchFilter(q);
         map.setFilter(fill, f);
         map.setFilter(line, f);
       });
     });
   }
 
-  function runFind(q) {
-    findQuery = String(q || "").trim().toLowerCase();
-    if (!findResults) return;
-    if (!findQuery) {
-      findResults.hidden = true;
-      findResults.innerHTML = "";
-      applyTitleSearch("");
-      applyOccFilter();
+  function fitFindHits(hits) {
+    const pts = [];
+    for (let i = 0; i < hits.length; i++) {
+      const it = hits[i];
+      if (it && it.lng != null && it.lat != null) pts.push(it);
+    }
+    if (!pts.length) return;
+    if (pts.length === 1) {
+      map.easeTo({ center: [pts[0].lng, pts[0].lat], zoom: Math.max(map.getZoom(), 8) });
       return;
     }
+    let minLng = 180, minLat = 90, maxLng = -180, maxLat = -90;
+    const cap = 1200;
+    const step = pts.length > cap ? Math.ceil(pts.length / cap) : 1;
+    for (let i = 0; i < pts.length; i += step) {
+      const lng = Number(pts[i].lng);
+      const lat = Number(pts[i].lat);
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+    if (minLng === maxLng) { minLng -= 0.2; maxLng += 0.2; }
+    if (minLat === maxLat) { minLat -= 0.2; maxLat += 0.2; }
+    map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+      padding: 48,
+      maxZoom: 9,
+      duration: 700
+    });
+  }
+
+  function ensureLiveTitleOn(stateId) {
+    if (!liveBox) return;
+    const inp = liveBox.querySelector('input[data-state="' + stateId + '"][data-life="live"]');
+    if (!inp || inp.disabled || inp.checked) return;
+    inp.checked = true;
+    const st = STATES.find(function (x) { return x.id === stateId; });
+    if (!st) return;
+    addStateLayers(stateId, "live", st.color).then(function (ok) {
+      if (!ok) return;
+      setVisible(stateId, "live", true);
+      if (findQuery) applyTitleSearch(findQuery);
+      updateLegend();
+    });
+  }
+
+  function ensureOverlayStateOn(box, kind, stateId) {
+    if (!box) return;
+    const inp = box.querySelector('input[data-ov="' + kind + '"][data-state="' + stateId + '"]');
+    if (inp && !inp.disabled) inp.checked = true;
+  }
+
+  function enableHexLayer(kind) {
+    const master = kind === "holes" ? holesMaster : gchemMaster;
+    const box = kind === "holes" ? holesBox : gchemBox;
+    const legend = kind === "holes" ? holesLegend : gchemLegend;
+    if (master && !master.checked) {
+      master.checked = true;
+      if (box) box.classList.remove("disabled");
+      if (legend) legend.hidden = false;
+      const more = document.getElementById("more-group");
+      if (more) more.open = true;
+    }
+    const loaded = kind === "holes" ? holesLoaded : gchemLoaded;
+    if (loaded) applyHexFilter(kind);
+    else loadHex(kind);
+    updateLegend();
+  }
+
+  function enableOccLayer() {
     if (occMaster && !occMaster.checked) {
       occMaster.checked = true;
       if (occBox) occBox.classList.remove("disabled");
     }
-    if (!occLoaded && !occLoading) loadOccurrences();
-    const hits = [];
-    for (let i = 0; i < findIndex.length && hits.length < 20; i++) {
-      const it = findIndex[i];
-      const blob = ((it.name || "") + " " + (it.holder || "") + " " + (it.tenure || "") + " " + (it.comm || "")).toLowerCase();
-      if (blob.indexOf(findQuery) !== -1) hits.push(it);
+    if (occLoaded) applyOccFilter();
+    else loadOccurrences();
+    updateLegend();
+  }
+
+  function hitPopupHtml(it) {
+    if (it.kind === "occ") return occPopupHtml(it.props || {});
+    if (it.kind === "holes") return hexPopupHtml(it.props || {}, "Holes");
+    if (it.kind === "gchem") return hexPopupHtml(it.props || {}, "Samples");
+    return popupHtml(it.props || {});
+  }
+
+  function hitLabel(it) {
+    if (it.kind === "occ") return it.name || it.comm || "Occurrence";
+    if (it.kind === "holes") return it.name || "Hole cell";
+    if (it.kind === "gchem") return it.name || "Sample cell";
+    return it.tenure || it.name || "Title";
+  }
+
+  function hitSub(it) {
+    const st = (it.state || "").toUpperCase();
+    if (it.kind === "occ") return st + " · " + (it.comm || "occurrence");
+    if (it.kind === "holes") return st + " hole cell · " + (it.operator || it.props && it.props.top_operators || "");
+    if (it.kind === "gchem") return st + " sample cell · " + (it.operator || it.props && it.props.top_operators || "");
+    const life = it.life === "dead" ? " dead" : "";
+    return st + life + " title · " + (it.holder || it.name || "");
+  }
+
+  function pickListHits(byKind) {
+    const order = ["title", "occ", "holes", "gchem"];
+    const shown = [];
+    order.forEach(function (k) {
+      const cap = FIND_LIST_CAP[k] || 10;
+      const arr = byKind[k] || [];
+      for (let i = 0; i < arr.length && i < cap; i++) shown.push(arr[i]);
+    });
+    return shown;
+  }
+
+  function runFind(q) {
+    const next = String(q || "").trim().toLowerCase();
+    if (next !== findQuery) findUserPicked = false;
+    findQuery = next;
+    if (!findResults) return;
+    if (!findQuery) {
+      findHexKinds.holes = false;
+      findHexKinds.gchem = false;
+      findResults.hidden = true;
+      findResults.innerHTML = "";
+      applyTitleSearch("");
+      applyOccFilter();
+      applyHexFilter("holes");
+      applyHexFilter("gchem");
+      return;
     }
+    if (!occLoaded && !occLoading) loadOccurrences();
+    if (!holesLoaded && !holesLoading) loadHex("holes");
+    if (!gchemLoaded && !gchemLoading) loadHex("gchem");
+
+    const byKind = { title: [], occ: [], holes: [], gchem: [] };
+    for (let i = 0; i < findIndex.length; i++) {
+      const it = findIndex[i];
+      if (!itemMatches(it, findQuery)) continue;
+      if (byKind[it.kind]) byKind[it.kind].push(it);
+    }
+    const titleN = byKind.title.length;
+    const occN = byKind.occ.length;
+    const holeN = byKind.holes.length;
+    const gchemN = byKind.gchem.length;
+    const total = titleN + occN + holeN + gchemN;
+    const allHits = byKind.title.concat(byKind.occ, byKind.holes, byKind.gchem);
+
+    findHexKinds.holes = holeN > 0;
+    findHexKinds.gchem = gchemN > 0;
+
+    const titleStates = {};
+    byKind.title.forEach(function (it) {
+      if (it.life !== "dead" && it.state) titleStates[it.state] = true;
+    });
+    Object.keys(titleStates).forEach(ensureLiveTitleOn);
+
+    if (occN) {
+      byKind.occ.forEach(function (it) { ensureOverlayStateOn(occBox, "occ", it.state); });
+      enableOccLayer();
+    }
+    if (holeN) {
+      byKind.holes.forEach(function (it) { ensureOverlayStateOn(holesBox, "holes", it.state); });
+      enableHexLayer("holes");
+    }
+    if (gchemN) {
+      byKind.gchem.forEach(function (it) { ensureOverlayStateOn(gchemBox, "gchem", it.state); });
+      enableHexLayer("gchem");
+    }
+
+    const shown = pickListHits(byKind);
     findResults.hidden = false;
-    if (!hits.length) {
-      findResults.innerHTML = '<p class="note">No matches in loaded layers.</p>';
+    const pending = !occLoaded || !holesLoaded || !gchemLoaded;
+    if (!total) {
+      findResults.innerHTML = pending
+        ? '<p class="note">No matches yet — still loading layers…</p>'
+        : '<p class="note">No matches in loaded layers.</p>';
     } else {
-      findResults.innerHTML = hits.map(function (it, i) {
-        const label = it.kind === "occ"
-          ? (it.name || it.comm || "Occurrence")
-          : (it.tenure || it.name || "Title");
-        const sub = it.kind === "occ"
-          ? ((it.state || "").toUpperCase() + " · " + (it.comm || "occurrence"))
-          : ((it.state || "").toUpperCase() + " title · " + (it.holder || it.name || ""));
-        return (
-          '<button type="button" class="find-hit" data-i="' + i + '"><strong>' +
-          escapeHtml(String(label)) +
-          "</strong><span>" +
-          escapeHtml(String(sub)) +
-          "</span></button>"
-        );
-      }).join("");
+      const parts = [];
+      parts.push(titleN.toLocaleString() + " title" + (titleN === 1 ? "" : "s"));
+      parts.push(occN.toLocaleString() + " occurrence" + (occN === 1 ? "" : "s"));
+      parts.push(holeN.toLocaleString() + " hole cell" + (holeN === 1 ? "" : "s"));
+      parts.push(gchemN.toLocaleString() + " sample cell" + (gchemN === 1 ? "" : "s"));
+      const extra = shown.length < total
+        ? '<p class="note">Showing ' + shown.length.toLocaleString() + " of " + total.toLocaleString() + ". Map plots matching features.</p>"
+        : "";
+      findResults.innerHTML =
+        '<div class="find-summary"><strong>' +
+        total.toLocaleString() +
+        " match" + (total === 1 ? "" : "es") +
+        "</strong> · " +
+        escapeHtml(parts.join(" · ")) +
+        "</div>" +
+        extra +
+        shown.map(function (it, i) {
+          return (
+            '<button type="button" class="find-hit" data-i="' + i + '"><strong>' +
+            escapeHtml(String(hitLabel(it))) +
+            "</strong><span>" +
+            escapeHtml(String(hitSub(it))) +
+            "</span></button>"
+          );
+        }).join("");
       findResults.querySelectorAll(".find-hit").forEach(function (btn, i) {
         btn.addEventListener("click", function () {
-          const it = hits[i];
+          const it = shown[i];
           if (!it || it.lng == null) return;
+          findUserPicked = true;
           map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 9) });
-          const html = it.kind === "occ" ? occPopupHtml(it.props || {}) : popupHtml(it.props || {});
-          popup.setLngLat([it.lng, it.lat]).setHTML(html).addTo(map);
+          popup.setLngLat([it.lng, it.lat]).setHTML(hitPopupHtml(it)).addTo(map);
         });
       });
+      if (!findUserPicked) fitFindHits(allHits);
     }
     applyTitleSearch(findQuery);
     applyOccFilter();
+    if (holesLoaded) applyHexFilter("holes");
+    if (gchemLoaded) applyHexFilter("gchem");
   }
 
   function updateLegend() {
@@ -930,16 +1215,15 @@
     const feats = [];
     (pack.rows || []).forEach(function (r) {
       if (!allow[r[0]]) return;
-      const types = r._mins || mineralIdsFromComm(r[4]);
-      let ok = false;
-      for (let i = 0; i < types.length; i++) {
-        if (allowMin[types[i]]) { ok = true; break; }
-      }
-      if (!ok) return;
       if (findQuery) {
-        const nm = String(r[3] || "").toLowerCase();
-        const cm = String(r[4] || "").toLowerCase();
-        if (nm.indexOf(findQuery) === -1 && cm.indexOf(findQuery) === -1) return;
+        if (!occRowMatches(r, findQuery)) return;
+      } else {
+        const types = r._mins || mineralIdsFromComm(r[4]);
+        let ok = false;
+        for (let i = 0; i < types.length; i++) {
+          if (allowMin[types[i]]) { ok = true; break; }
+        }
+        if (!ok) return;
       }
       feats.push({
         type: "Feature",
@@ -1006,9 +1290,13 @@
     map.setLayoutProperty(layer, "visibility", "visible");
     if (!states.length) {
       map.setFilter(layer, ["==", ["get", "state"], "__none__"]);
-    } else {
-      map.setFilter(layer, ["in", ["get", "state"], ["literal", states]]);
+      return;
     }
+    let filter = ["in", ["get", "state"], ["literal", states]];
+    if (findQuery && findHexKinds[kind]) {
+      filter = ["all", filter, ["!=", ["get", "demo"], true], hexCompanyFilter(findQuery)];
+    }
+    map.setFilter(layer, filter);
   }
 
   function applyOccFilter() {
@@ -1174,8 +1462,10 @@
           gchemLoaded = true;
           gchemLoading = false;
         }
+        indexHexFeatures(kind, gj);
         applyHexFilter(kind);
         log(kind + " density loaded (" + ((gj.features || []).length).toLocaleString() + " hexes).");
+        if (findQuery && findInput) runFind(findInput.value);
       })
       .catch(function (err) {
         if (kind === "holes") {

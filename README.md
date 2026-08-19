@@ -4,7 +4,7 @@ National live mining and exploration titles, stitched from official state feeds.
 
 Live: https://nathanfowler.github.io/xplorr/
 
-Sidebar is grouped like the state viewers (Find, Titles, Geology, Commodities, More). Search is first-class. Empty popup fields and a few missing layers are clearly marked **DEMO**, not real.
+Sidebar is grouped like the state viewers (Find, Titles, Geology, Commodities, More). Find matches title numbers, holders/companies, occurrence names, and hole/geochem operators (DEMO features excluded). Empty popup fields and a few missing layers are clearly marked **DEMO**, not real.
 
 ## Geology
 

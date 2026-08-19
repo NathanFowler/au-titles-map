@@ -53,7 +53,9 @@ footer { margin-top: 16px; font-size: 0.72rem; color: #6b7785; line-height: 1.4;
   font-size: 0.82rem;
 }
 #find:focus, #geo-search:focus { outline: 1px solid #3d9cf0; }
-#find-results { max-height: 200px; overflow: auto; margin-top: 4px; }
+#find-results { max-height: 280px; overflow: auto; margin-top: 4px; }
+.find-summary { font-size: 0.72rem; color: #8a97a6; line-height: 1.35; margin: 4px 0 6px; }
+.find-summary strong { color: #c5d0db; }
 .find-hit {
   display: block;
   width: 100%;
