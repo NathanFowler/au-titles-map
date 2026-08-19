@@ -120,6 +120,10 @@
   const gchemMaster = document.getElementById("gchem-master");
   const gchemBox = document.getElementById("gchem-toggles");
   const gchemLegend = document.getElementById("gchem-legend");
+  const findInput = document.getElementById("find");
+  const findResults = document.getElementById("find-results");
+  const statusLine = document.getElementById("status-line");
+  const legendLive = document.getElementById("legend-live");
 
   let manifest = null;
   const layerMeta = {};
@@ -133,9 +137,26 @@
   let holesLoading = false;
   let gchemLoaded = false;
   let gchemLoading = false;
+  let findQuery = "";
+  let occIndexed = false;
+  const findIndex = [];
+  const DEMO_NA = "DEMO — n/a";
+  const DEMO_HOLDERS = [
+    "DEMO Acme Gold Pty Ltd",
+    "DEMO Southern Cross Minerals Pty Ltd",
+    "DEMO Outback Exploration Pty Ltd",
+    "DEMO Ironbark Resources Ltd",
+    "DEMO Nullarbor Metals Pty Ltd",
+    "DEMO Copperhead Mining Pty Ltd",
+    "DEMO Red Earth Prospecting Pty Ltd"
+  ];
 
   function log(msg) {
-    statusEl.textContent = msg;
+    if (statusEl) statusEl.textContent = msg;
+    if (statusLine) {
+      const first = String(msg || "").split("\n")[0];
+      statusLine.textContent = first;
+    }
   }
 
   function layerId(state, life) {
@@ -171,137 +192,132 @@
 
   const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "340px" });
 
-  function popupHtml(props) {
-    const rows = [
-      ["State", props.state],
-      ["Tenure", props.tenure],
-      ["Status", props.status],
-      ["Name", props.name],
-      ["Holder", props.holder],
-      ["Grant", props.grant],
-      ["Expiry", props.expiry]
-    ].filter((r) => r[1] != null && String(r[1]).trim() !== "");
-    const title = props.name || props.tenure || "Title";
+  function isBlank(v) {
+    return v == null || String(v).trim() === "";
+  }
+
+  function demoHolder(seed) {
+    const s = String(seed || "x");
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return DEMO_HOLDERS[h % DEMO_HOLDERS.length];
+  }
+
+  function fillField(v, fallback) {
+    if (!isBlank(v)) return String(v);
+    return fallback;
+  }
+
+  function popupRowsHtml(rows) {
+    return rows
+      .map(function (r) {
+        const demo = String(r[1]).indexOf("DEMO") === 0;
+        return (
+          '<div class="popup-row"><span>' +
+          escapeHtml(r[0]) +
+          "</span><span" +
+          (demo ? ' class="popup-demo"' : "") +
+          ">" +
+          escapeHtml(String(r[1])) +
+          "</span></div>"
+        );
+      })
+      .join("");
+  }
+
+  function popupWrap(kicker, title, rows) {
     return (
+      (kicker ? '<div class="popup-kicker">' + escapeHtml(kicker) + "</div>" : "") +
       '<div class="popup-title">' +
       escapeHtml(String(title)) +
       "</div>" +
-      rows
-        .map(function (r) {
-          return (
-            '<div class="popup-row"><span>' +
-            escapeHtml(r[0]) +
-            "</span><span>" +
-            escapeHtml(String(r[1])) +
-            "</span></div>"
-          );
-        })
-        .join("")
+      popupRowsHtml(rows)
     );
   }
 
-  function geoPopupHtml(props) {
+  function popupHtml(props) {
+    const seed = props.name || props.tenure || props.state || "";
+    const name = fillField(props.name, "DEMO unnamed title");
     const rows = [
-      ["State", props.state],
-      ["Kind", props.kind],
-      ["Unit", props.name],
-      ["Source", props.source]
-    ].filter((r) => r[1] != null && String(r[1]).trim() !== "");
-    return (
-      '<div class="popup-title">' +
-      escapeHtml(String(props.name || props.kind || "Geology")) +
-      "</div>" +
-      rows
-        .map(function (r) {
-          return (
-            '<div class="popup-row"><span>' +
-            escapeHtml(r[0]) +
-            "</span><span>" +
-            escapeHtml(String(r[1])) +
-            "</span></div>"
-          );
-        })
-        .join("")
-    );
+      ["State", fillField(props.state, DEMO_NA)],
+      ["Tenure", fillField(props.tenure, DEMO_NA)],
+      ["Status", fillField(props.status, "DEMO current")],
+      ["Name", name],
+      ["Holder", fillField(props.holder, demoHolder(seed))],
+      ["Grant", fillField(props.grant, DEMO_NA)],
+      ["Expiry", fillField(props.expiry, DEMO_NA)]
+    ];
+    return popupWrap("Title", name, rows);
+  }
+
+  function geoPopupHtml(props) {
+    const name = fillField(props.name, "DEMO unnamed unit");
+    const rows = [
+      ["State", fillField(props.state, DEMO_NA)],
+      ["Kind", fillField(props.kind, DEMO_NA)],
+      ["Unit", name],
+      ["Source", fillField(props.source, DEMO_NA)]
+    ];
+    return popupWrap("Geology", name, rows);
   }
 
   function gaPopupHtml(props) {
     const pick = [
-      ["Name", props.NAME || props.NAMEU || props.UNITNAME || props.STRATNAME || props.name],
-      ["Lithology", props.LITHNAME || props.LITHDESC || props.LITHOLOGY],
-      ["Age", props.AGE || props.AGE_NAME || props.MAXAGE],
-      ["Symbol", props.MAPSYMBOL || props.SYMBOL || props.GLCODE],
-      ["Layer", props.layer || props.LAYER]
-    ].filter((r) => r[1] != null && String(r[1]).trim() !== "");
+      ["Name", fillField(props.NAME || props.NAMEU || props.UNITNAME || props.STRATNAME || props.name, "DEMO unnamed unit")],
+      ["Lithology", fillField(props.LITHNAME || props.LITHDESC || props.LITHOLOGY, DEMO_NA)],
+      ["Age", fillField(props.AGE || props.AGE_NAME || props.MAXAGE, DEMO_NA)],
+      ["Symbol", fillField(props.MAPSYMBOL || props.SYMBOL || props.GLCODE, DEMO_NA)],
+      ["Layer", fillField(props.layer || props.LAYER, DEMO_NA)]
+    ];
     const extra = Object.keys(props || {}).filter(function (k) {
       return pick.every(function (r) { return r[0] !== k; }) && props[k] != null && String(props[k]).trim() !== "";
     }).slice(0, 6);
     const rows = pick.concat(extra.map(function (k) { return [k, props[k]]; }));
-    return (
-      '<div class="popup-title">GA surface geology</div>' +
-      rows
-        .map(function (r) {
-          return (
-            '<div class="popup-row"><span>' +
-            escapeHtml(String(r[0])) +
-            "</span><span>" +
-            escapeHtml(String(r[1])) +
-            "</span></div>"
-          );
-        })
-        .join("")
-    );
+    return popupWrap("Geology", "GA surface geology", rows);
   }
 
   function occPopupHtml(props) {
+    const demo = props.demo === true || props.demo === "true" || props.demo === 1;
+    const name = fillField(props.name, "DEMO unnamed occurrence");
     const rows = [
-      ["State", props.state],
-      ["Commodity", props.comm],
-      ["Type", props.kind],
-      ["Status", props.status],
-      ["Licence", props.state === "wa" ? "WA MINEDEX CC BY-NC 4.0" : ""]
-    ].filter(function (r) { return r[1] != null && String(r[1]).trim() !== ""; });
-    const title = props.name || props.comm || "Occurrence";
-    return (
-      '<div class="popup-title">' +
-      escapeHtml(String(title)) +
-      "</div>" +
-      rows
-        .map(function (r) {
-          return (
-            '<div class="popup-row"><span>' +
-            escapeHtml(String(r[0])) +
-            "</span><span>" +
-            escapeHtml(String(r[1])) +
-            "</span></div>"
-          );
-        })
-        .join("")
-    );
+      ["State", fillField(props.state, DEMO_NA)],
+      ["Commodity", fillField(props.comm, DEMO_NA)],
+      ["Type", fillField(props.kind, "DEMO prospect")],
+      ["Status", fillField(props.status, DEMO_NA)],
+      ["Licence", props.state === "wa" ? "WA MINEDEX CC BY-NC 4.0" : fillField("", DEMO_NA)]
+    ];
+    if (demo) rows.push(["Note", "DEMO — not a real occurrence"]);
+    return popupWrap("Occurrence", name, rows);
   }
 
   function hexPopupHtml(props, label) {
+    const demo = props.demo === true || props.demo === "true" || props.demo === 1;
+    const nStr = props.n != null ? Number(props.n).toLocaleString() : DEMO_NA;
+    const st = props.state ? String(props.state).toUpperCase() : DEMO_NA;
+    const unit = label === "Holes" ? "holes" : "samples";
+    const title = (demo ? "DEMO " : "") + nStr + " " + unit + " · " + st + " · ~20 km cell";
+    let depth = "";
+    if (props.depth_min != null && props.depth_max != null) {
+      depth = Number(props.depth_min) + "–" + Number(props.depth_max) + " m";
+      if (props.depth_med != null) depth += " (median " + Number(props.depth_med) + ")";
+    }
+    let years = "";
+    if (props.year_min != null && props.year_max != null) {
+      years = String(props.year_min) + "–" + String(props.year_max);
+    } else if (props.year_min != null) {
+      years = String(props.year_min);
+    }
+    const ids = props.sample_hole_ids || props.sample_ids || "";
     const rows = [
-      ["State", props.state ? String(props.state).toUpperCase() : ""],
-      [label, props.n != null ? Number(props.n).toLocaleString() : ""],
-      ["Cell", "~20 km hex (aggregated)"]
-    ].filter(function (r) { return r[1] != null && String(r[1]).trim() !== ""; });
-    return (
-      '<div class="popup-title">' +
-      escapeHtml(label + " density") +
-      "</div>" +
-      rows
-        .map(function (r) {
-          return (
-            '<div class="popup-row"><span>' +
-            escapeHtml(String(r[0])) +
-            "</span><span>" +
-            escapeHtml(String(r[1])) +
-            "</span></div>"
-          );
-        })
-        .join("")
-    );
+      ["Depth", fillField(depth, DEMO_NA)],
+      ["Drilled", fillField(years, DEMO_NA)],
+      ["Types", fillField(props.top_types, DEMO_NA)],
+      ["Operators", fillField(props.top_operators, DEMO_NA)],
+      [label === "Holes" ? "Targets" : "Elements", fillField(props.top_commodities, DEMO_NA)],
+      ["Examples", fillField(ids, DEMO_NA)]
+    ];
+    if (demo) rows.push(["Note", "DEMO — not real harvest density"]);
+    return popupWrap(label, title, rows);
   }
 
   function escapeHtml(s) {
@@ -311,6 +327,181 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+
+
+  function geomCenter(geom) {
+    if (!geom) return null;
+    if (geom.type === "Point") return geom.coordinates;
+    let xs = 0, ys = 0, n = 0;
+    function walk(c) {
+      if (typeof c[0] === "number") { xs += c[0]; ys += c[1]; n++; }
+      else c.forEach(walk);
+    }
+    walk(geom.coordinates || []);
+    return n ? [xs / n, ys / n] : null;
+  }
+
+  function indexTitleFeatures(state, life, gj) {
+    (gj.features || []).forEach(function (f) {
+      const p = f.properties || {};
+      const c = geomCenter(f.geometry);
+      if (!c) return;
+      findIndex.push({
+        kind: "title",
+        state: state,
+        life: life,
+        name: p.name || "",
+        holder: p.holder || "",
+        tenure: p.tenure || "",
+        lng: c[0],
+        lat: c[1],
+        props: p
+      });
+    });
+  }
+
+  function indexOccurrences(pack) {
+    if (occIndexed) return;
+    occIndexed = true;
+    (pack.rows || []).forEach(function (r) {
+      findIndex.push({
+        kind: "occ",
+        state: r[0],
+        name: r[3] || "",
+        comm: r[4] || "",
+        lng: r[1],
+        lat: r[2],
+        props: {
+          state: r[0],
+          name: r[3] || "",
+          comm: r[4] || "",
+          kind: r[5] || "",
+          status: r[6] || "",
+          demo: r[7] === true || r[7] === 1
+        }
+      });
+    });
+  }
+
+  function ensureOccurrencesOn() {
+    if (occMaster && !occMaster.checked) occMaster.checked = true;
+    if (occBox) occBox.classList.remove("disabled");
+    loadOccurrences();
+    updateLegend();
+  }
+
+  function applyTitleSearch(q) {
+    STATES.forEach(function (s) {
+      ["live", "dead"].forEach(function (life) {
+        const fill = layerId(s.id, life) + "-fill";
+        const line = layerId(s.id, life) + "-line";
+        if (!map.getLayer(fill)) return;
+        if (!q) {
+          map.setFilter(fill, null);
+          map.setFilter(line, null);
+          return;
+        }
+        const f = [
+          "any",
+          ["in", q, ["downcase", ["to-string", ["get", "name"]]]],
+          ["in", q, ["downcase", ["to-string", ["get", "holder"]]]],
+          ["in", q, ["downcase", ["to-string", ["get", "tenure"]]]]
+        ];
+        map.setFilter(fill, f);
+        map.setFilter(line, f);
+      });
+    });
+  }
+
+  function runFind(q) {
+    findQuery = String(q || "").trim().toLowerCase();
+    if (!findResults) return;
+    if (!findQuery) {
+      findResults.hidden = true;
+      findResults.innerHTML = "";
+      applyTitleSearch("");
+      applyOccFilter();
+      return;
+    }
+    if (occMaster && !occMaster.checked) {
+      occMaster.checked = true;
+      if (occBox) occBox.classList.remove("disabled");
+    }
+    if (!occLoaded && !occLoading) loadOccurrences();
+    const hits = [];
+    for (let i = 0; i < findIndex.length && hits.length < 20; i++) {
+      const it = findIndex[i];
+      const blob = ((it.name || "") + " " + (it.holder || "") + " " + (it.tenure || "") + " " + (it.comm || "")).toLowerCase();
+      if (blob.indexOf(findQuery) !== -1) hits.push(it);
+    }
+    findResults.hidden = false;
+    if (!hits.length) {
+      findResults.innerHTML = '<p class="note">No matches in loaded layers.</p>';
+    } else {
+      findResults.innerHTML = hits.map(function (it, i) {
+        const label = it.kind === "occ"
+          ? (it.name || it.comm || "Occurrence")
+          : (it.tenure || it.name || "Title");
+        const sub = it.kind === "occ"
+          ? ((it.state || "").toUpperCase() + " · " + (it.comm || "occurrence"))
+          : ((it.state || "").toUpperCase() + " title · " + (it.holder || it.name || ""));
+        return (
+          '<button type="button" class="find-hit" data-i="' + i + '"><strong>' +
+          escapeHtml(String(label)) +
+          "</strong><span>" +
+          escapeHtml(String(sub)) +
+          "</span></button>"
+        );
+      }).join("");
+      findResults.querySelectorAll(".find-hit").forEach(function (btn, i) {
+        btn.addEventListener("click", function () {
+          const it = hits[i];
+          if (!it || it.lng == null) return;
+          map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 9) });
+          const html = it.kind === "occ" ? occPopupHtml(it.props || {}) : popupHtml(it.props || {});
+          popup.setLngLat([it.lng, it.lat]).setHTML(html).addTo(map);
+        });
+      });
+    }
+    applyTitleSearch(findQuery);
+    applyOccFilter();
+  }
+
+  function updateLegend() {
+    if (!legendLive) return;
+    const rows = [];
+    STATES.forEach(function (s) {
+      const inp = liveBox ? liveBox.querySelector('input[data-state="' + s.id + '"][data-life="live"]') : null;
+      if (inp && inp.checked && !inp.disabled) {
+        rows.push(
+          '<div class="legend-row"><span class="swatch" style="background:' +
+            s.color +
+            '"></span><span>' +
+            s.name +
+            " title</span></div>"
+        );
+      }
+    });
+    if (occMaster && occMaster.checked) {
+      rows.push(
+        '<div class="legend-row"><span class="swatch round" style="background:#f2c14e"></span><span>Occurrence / mine</span></div>'
+      );
+    }
+    if (kindsMaster && kindsMaster.checked) {
+      rows.push('<div class="legend-row"><span class="swatch" style="background:#7a9e7e"></span><span>Geology kinds</span></div>');
+    }
+    if (gaToggle && gaToggle.checked) {
+      rows.push('<div class="legend-row"><span class="swatch" style="background:#8c7b6b"></span><span>GA geology</span></div>');
+    }
+    if (holesMaster && holesMaster.checked) {
+      rows.push('<div class="legend-row"><span class="ramp holes" style="width:36px;height:8px;border-radius:4px"></span><span>Hole density</span></div>');
+    }
+    if (gchemMaster && gchemMaster.checked) {
+      rows.push('<div class="legend-row"><span class="ramp gchem" style="width:36px;height:8px;border-radius:4px"></span><span>Geochem density</span></div>');
+    }
+    legendLive.innerHTML = rows.length ? rows.join("") : '<p class="legend-empty">Nothing on yet.</p>';
+  }
+
 
   function firstTitleLayerId() {
     const layers = map.getStyle().layers || [];
@@ -338,6 +529,7 @@
       .then(function (gj) {
         const n = (gj.features || []).length;
         if (n === 0) return false;
+        indexTitleFeatures(state, life, gj);
         map.addSource(sid, { type: "geojson", data: gj, generateId: true });
         const opacityFill = life === "live" ? 0.28 : 0.12;
         const opacityLine = life === "live" ? 0.9 : 0.55;
@@ -397,9 +589,8 @@
         '"></span>' +
         "<span>" +
         s.name +
-        " live (" +
-        (liveMeta.features || 0).toLocaleString() +
-        ")</span>";
+        (liveMeta.features ? " · " + Number(liveMeta.features).toLocaleString() : "") +
+        "</span>";
       liveBox.appendChild(liveLabel);
 
       const deadLabel = document.createElement("label");
@@ -415,9 +606,9 @@
         ';opacity:0.45"></span>' +
         "<span>" +
         s.name +
-        " dead (" +
-        (deadMeta.features || 0).toLocaleString() +
-        ")</span>";
+        " dead" +
+        (deadMeta.features ? " · " + Number(deadMeta.features).toLocaleString() : "") +
+        "</span>";
       deadBox.appendChild(deadLabel);
     });
 
@@ -441,7 +632,9 @@
         "</span>";
       mineralBox.appendChild(lab);
     });
-    mineralBox.addEventListener("change", applyOccFilter);
+    mineralBox.addEventListener("change", function () {
+      ensureOccurrencesOn();
+    });
   }
 
   function selectedMinerals() {
@@ -743,6 +936,11 @@
         if (allowMin[types[i]]) { ok = true; break; }
       }
       if (!ok) return;
+      if (findQuery) {
+        const nm = String(r[3] || "").toLowerCase();
+        const cm = String(r[4] || "").toLowerCase();
+        if (nm.indexOf(findQuery) === -1 && cm.indexOf(findQuery) === -1) return;
+      }
       feats.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: [r[1], r[2]] },
@@ -751,7 +949,8 @@
           name: r[3] || "",
           comm: r[4] || "",
           kind: r[5] || "",
-          status: r[6] || ""
+          status: r[6] || "",
+          demo: r[7] === true || r[7] === 1
         }
       });
     });
@@ -845,6 +1044,7 @@
         (pack.rows || []).forEach(function (r) {
           r._mins = mineralIdsFromComm(r[4]);
         });
+        indexOccurrences(pack);
         const gj = occToGJ(pack, selectedOverlayStates(occBox));
         if (!map.getSource("occ")) {
           map.addSource("occ", {
@@ -912,7 +1112,9 @@
         occLoading = false;
         applyOccFilter();
         const n = ((pack.rows || []).length);
-        log("Occurrences loaded (" + n.toLocaleString() + "). WA MINEDEX is CC BY-NC.");
+        log("Occurrences loaded (" + n.toLocaleString() + ")");
+        if (findQuery && findInput) runFind(findInput.value);
+        updateLegend();
       })
       .catch(function (err) {
         occLoading = false;
@@ -997,6 +1199,7 @@
     });
     if (!st) return;
 
+    updateLegend();
     if (t.checked) {
       log("Loading " + state.toUpperCase() + " " + life + "…");
       addStateLayers(state, life, st.color)
@@ -1067,12 +1270,22 @@
     }
   }
 
+  if (findInput) {
+    let findTimer = null;
+    findInput.addEventListener("input", function () {
+      clearTimeout(findTimer);
+      findTimer = setTimeout(function () { runFind(findInput.value); }, 160);
+    });
+  }
+
   osmToggle.addEventListener("change", function () {
     ensureOsm(osmToggle.checked);
+    updateLegend();
   });
 
   gaToggle.addEventListener("change", function () {
     ensureGa(gaToggle.checked);
+    updateLegend();
   });
 
   kindsMaster.addEventListener("change", function () {
@@ -1083,6 +1296,7 @@
       kindBox.classList.add("disabled");
       applyGeoFilter();
     }
+    updateLegend();
   });
 
   geoSearch.addEventListener("input", function () {
@@ -1111,13 +1325,13 @@
     mineralBox.querySelectorAll('input[type="checkbox"]').forEach(function (inp) {
       inp.checked = true;
     });
-    applyOccFilter();
+    ensureOccurrencesOn();
   });
   minsNone.addEventListener("click", function () {
     mineralBox.querySelectorAll('input[type="checkbox"]').forEach(function (inp) {
       inp.checked = false;
     });
-    applyOccFilter();
+    ensureOccurrencesOn();
   });
 
   occMaster.addEventListener("change", function () {
@@ -1128,6 +1342,7 @@
       occBox.classList.add("disabled");
       applyOccFilter();
     }
+    updateLegend();
   });
   holesMaster.addEventListener("change", function () {
     if (holesMaster.checked) {
@@ -1139,6 +1354,7 @@
       if (holesLegend) holesLegend.hidden = true;
       applyHexFilter("holes");
     }
+    updateLegend();
   });
   gchemMaster.addEventListener("change", function () {
     if (gchemMaster.checked) {
@@ -1150,6 +1366,7 @@
       if (gchemLegend) gchemLegend.hidden = true;
       applyHexFilter("gchem");
     }
+    updateLegend();
   });
 
   map.on("click", function (e) {
@@ -1205,11 +1422,18 @@
         buildStateMini(occBox, "occ", overlayCounts("occ"));
         buildStateMini(holesBox, "holes", overlayCounts("holes"));
         buildStateMini(gchemBox, "gchem", overlayCounts("gchem"));
+        if (occMaster && occMaster.checked) {
+          occBox.classList.remove("disabled");
+          loadOccurrences();
+        }
+        updateLegend();
       })
       .catch(function () {
         buildStateMini(occBox, "occ", {});
         buildStateMini(holesBox, "holes", {});
         buildStateMini(gchemBox, "gchem", {});
+        if (occMaster && occMaster.checked) loadOccurrences();
+        updateLegend();
       });
     fetch("data/manifest.json")
       .then(function (r) {
@@ -1240,13 +1464,9 @@
           const dead = STATES.reduce(function (a, s) {
             return a + ((layerMeta[s.id + "_dead"] || {}).features || 0);
           }, 0);
-          log(
-            "Ready.\nLive features: " +
-              live.toLocaleString() +
-              "\nDead available: " +
-              dead.toLocaleString() +
-              "\nOverlays: occurrences, drillhole density, geochem density.\nGeology/holes draw under titles; title clicks win."
-          );
+          log("Ready · " + live.toLocaleString() + " live titles");
+          if (findQuery && findInput) runFind(findInput.value);
+          updateLegend();
         });
       })
       .catch(function (err) {
