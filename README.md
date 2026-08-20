@@ -81,5 +81,6 @@ Five map-side tools. Harvest report catalogues stay out of this repo; only a sli
 3. **My ground** — pin a company and/or title numbers (optional name). Persists in `localStorage`. Share `?company=BHP` or `?vs=BHP,RIO`. No accounts, no PAT.
 4. **Reports layer** — off by default. Clustered points at **title centroids after a tenement join**. Catalogues with no geometry and no join are not scattered. SA reports are empty (SARIG CSW WAF 403).
 5. **Company vs company** — `?vs=BHP,RIO` colours two holder sets and leaves identify working. Token match so `RIO` is Rio Tinto, not Marion.
+6. **Open ground** — land not under a live title in the state registers. Find has an Open ground control (`?open=1` or `?open=lng,lat`). Click a point for **Open ground** or **Held** plus covering live titles (name, holder, tenure, state). Box pack adds a point-sample vacant vs held count — not a vacant cadastral polygon. This is not a grant, and not parks / native title / planning / pastoral / city lots. ACT has no titles register. Every live title in the official feeds is already held; there is no for-sale list.
 
 Report URLs are taken from the harvest (DIGS / GEMIS / MRT / GSV / WAMEX portal home + A-number) or the official GSQ CKAN dataset page built from the harvested package id. PDFs are not downloaded.

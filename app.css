@@ -113,6 +113,25 @@ footer { margin-top: 16px; font-size: 0.72rem; color: #6b7785; line-height: 1.4;
 .myground { margin-top: 10px; }
 .myground .kind-actions { flex-wrap: wrap; }
 
+.openground { margin: 8px 0 4px; }
+#open-ground {
+  background: #1e2733;
+  color: #c5d0db;
+  border: 1px solid #2a3441;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+#open-ground:hover { background: #263140; }
+#open-ground.active {
+  background: #2a5a3a;
+  color: #c8f0d0;
+  border-color: #3d8f5a;
+}
+.popup-kicker.popup-open { color: #8fd18f; }
+.popup-kicker.popup-held { color: #e0b34a; }
+
 #map-tools {
   position: absolute;
   top: 12px;
