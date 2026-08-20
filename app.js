@@ -195,7 +195,7 @@
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), "top-right");
   map.addControl(new maplibregl.ScaleControl({ unit: "metric" }));
 
-  const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "340px" });
+  const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "400px" });
 
   function isBlank(v) {
     return v == null || String(v).trim() === "";
@@ -452,6 +452,7 @@
         demo: isDemoFlag(p.demo),
         props: p
       });
+        if (p.holder && !isDemoString(p.holder)) titleHolders.push(p.holder);
     });
   }
 
@@ -517,6 +518,10 @@
   }
 
   function applyTitleSearch(q) {
+    if ((vsPair && vsPair[0] && vsPair[1]) || (ground && (ground.company || (ground.titles && ground.titles.length)))) {
+      applyGroundFilters();
+      return;
+    }
     STATES.forEach(function (s) {
       ["live", "dead"].forEach(function (life) {
         const fill = layerId(s.id, life) + "-fill";
@@ -741,7 +746,10 @@
           if (!it || it.lng == null) return;
           findUserPicked = true;
           map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 9) });
-          popup.setLngLat([it.lng, it.lat]).setHTML(hitPopupHtml(it)).addTo(map);
+          if (it.kind === "title") showTitleIdentify({ lng: it.lng, lat: it.lat }, it.props || {});
+          else if (it.kind === "holes") showHexIdentify({ lng: it.lng, lat: it.lat }, it.props || {}, "Holes");
+          else if (it.kind === "gchem") showHexIdentify({ lng: it.lng, lat: it.lat }, it.props || {}, "Samples");
+          else popup.setLngLat([it.lng, it.lat]).setHTML(hitPopupHtml(it)).addTo(map);
         });
       });
       if (!findUserPicked) fitFindHits(allHits);
@@ -783,6 +791,15 @@
     }
     if (gchemMaster && gchemMaster.checked) {
       rows.push('<div class="legend-row"><span class="ramp gchem" style="width:36px;height:8px;border-radius:4px"></span><span>Geochem density</span></div>');
+    }
+    if (reportsMaster && reportsMaster.checked) {
+      rows.push('<div class="legend-row"><span class="swatch round" style="background:#7ec4ff"></span><span>Joined reports</span></div>');
+    }
+    if (vsPair && vsPair[0] && vsPair[1]) {
+      rows.unshift(
+        '<div class="legend-row vs-a"><span class="swatch"></span><span>' + escapeHtml(vsPair[0]) + '</span></div>' +
+        '<div class="legend-row vs-b"><span class="swatch"></span><span>' + escapeHtml(vsPair[1]) + '</span></div>'
+      );
     }
     legendLive.innerHTML = rows.length ? rows.join("") : '<p class="legend-empty">Nothing on yet.</p>';
   }
@@ -843,6 +860,9 @@
         map.on("mouseleave", fill, function () {
           map.getCanvas().style.cursor = "";
         });
+        if (vsPair || (ground && (ground.company || (ground.titles && ground.titles.length)))) {
+          applyGroundFilters();
+        }
         return true;
       });
   }
@@ -1462,6 +1482,7 @@
           gchemLoaded = true;
           gchemLoading = false;
         }
+        hexStore[kind] = gj;
         indexHexFeatures(kind, gj);
         applyHexFilter(kind);
         log(kind + " density loaded (" + ((gj.features || []).length).toLocaleString() + " hexes).");
@@ -1659,12 +1680,962 @@
     updateLegend();
   });
 
+
+  const ASSET_V = "20260820";
+  const VS_A_COLOR = "#3d9cf0";
+  const VS_B_COLOR = "#e83e8c";
+  const GROUND_KEY = "xplorr.myground";
+  const PACK_CAP = { title: 40, occ: 30, holes: 20, gchem: 20, report: 30 };
+
+  const groundName = document.getElementById("ground-name");
+  const groundCompany = document.getElementById("ground-company");
+  const groundVs = document.getElementById("ground-vs");
+  const groundTitles = document.getElementById("ground-titles");
+  const groundPin = document.getElementById("ground-pin");
+  const groundApply = document.getElementById("ground-apply");
+  const groundClear = document.getElementById("ground-clear");
+  const groundStatus = document.getElementById("ground-status");
+  const reportsMaster = document.getElementById("reports-master");
+  const boxTool = document.getElementById("box-tool");
+  const drawBoxEl = document.getElementById("draw-box");
+  const packEl = document.getElementById("pack");
+  const packBody = document.getElementById("pack-body");
+  const packClose = document.getElementById("pack-close");
+
+  let reportsPack = null;
+  let reportsLoading = false;
+  let reportsLoaded = false;
+  let reportsPtsLoaded = false;
+  let lastTitle = null;
+  let ground = { name: "", company: "", titles: [] };
+  let vsPair = null;
+  let boxDrawMode = false;
+  let boxDrawing = false;
+  let boxStart = null;
+  let skipNextClick = false;
+  let lastBoxBounds = null;
+  const hexStore = { holes: null, gchem: null };
+  const titleHolders = [];
+
+  const RE_BLOCK = /\b(EPM|EPC|MDL|EMEL|EMPN|EMLN|HLDN|HLDC|AUTH|ELA|MLA|CCL|PLL|MPL|CML|EPL|ELR|MLN|MLC|MCC|EML|EMP|ERA|SEL|GML|MIL|LIC|MRC|LSE|PAL|TRL|TMA|TTL|TFA|ESP|MIN|EL|AL|ML|MC|PL|CL|GL|RL|WA|DL|TR|AA|MA)\s*[-\.]?\s*0*(\d{1,6})(?:\s*\/\s*(\d{2,4}))?\b/gi;
+  const RE_WA = /\b(CML|MCI|ECI|GCI|TR|E|P|L|G|R|M)\s*[-\.]?\s*(\d{1,3})\s*\/\s*(\d{1,5}[A-Z]?)\b/gi;
+  const RE_WA_TR = /\bT\.?\s*R\.?\s*(\d{1,3})\s*\/\s*(\d{1,5}[A-Z]?)\b/gi;
+
+  function assetUrl(path) {
+    return path + (path.indexOf("?") >= 0 ? "&" : "?") + "v=" + ASSET_V;
+  }
+
+  function safeHttpUrl(u) {
+    const s = String(u || "").trim();
+    if (!s || isDemoString(s)) return "";
+    if (s.indexOf("http://") !== 0 && s.indexOf("https://") !== 0) return "";
+    return s;
+  }
+
+  function holderTokens(h) {
+    return String(h || "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+  }
+
+  function holderMatchesCompany(holder, q) {
+    const tokens = holderTokens(holder);
+    const qt = holderTokens(q);
+    if (!qt.length || itemIsDemo({ props: { holder: holder } }) && isDemoString(holder)) return false;
+    if (isDemoString(holder)) return false;
+    for (let i = 0; i <= tokens.length - qt.length; i++) {
+      let ok = true;
+      for (let j = 0; j < qt.length; j++) {
+        if (tokens[i + j] !== qt[j]) { ok = false; break; }
+      }
+      if (ok) return true;
+    }
+    return false;
+  }
+
+  function parseTitleList(s) {
+    return String(s || "")
+      .split(/[,;\n]+/)
+      .map(function (x) { return x.trim(); })
+      .filter(function (x) { return x && !isDemoString(x); });
+  }
+
+  function titleMatchesPin(name, pins) {
+    const n = String(name || "").trim().toLowerCase();
+    if (!n) return false;
+    for (let i = 0; i < pins.length; i++) {
+      if (n === String(pins[i]).trim().toLowerCase()) return true;
+    }
+    return false;
+  }
+
+  function compactName(name) {
+    return String(name || "").toLowerCase().replace(/[^a-z0-9/]/g, "");
+  }
+
+  function extractTitleKeys(state, name) {
+    const st = String(state || "").toLowerCase();
+    const blob = String(name || "");
+    const keys = [];
+    const seen = {};
+    function add(k) {
+      if (k && !seen[k]) { seen[k] = true; keys.push(k); }
+    }
+    function tenementKey(pref, num, tail) {
+      const p = String(pref || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const n = String(num || "").replace(/^0+/, "") || "0";
+      if (tail) return st + ":" + p + n + "/" + String(tail).replace(/\s+/g, "").toUpperCase();
+      return st + ":" + p + n;
+    }
+    if (st === "wa") {
+      RE_WA.lastIndex = 0;
+      let m;
+      while ((m = RE_WA.exec(blob))) add(tenementKey(m[1], m[2], m[3]));
+      RE_WA_TR.lastIndex = 0;
+      while ((m = RE_WA_TR.exec(blob))) add(tenementKey("TR", m[1], m[2]));
+    }
+    RE_BLOCK.lastIndex = 0;
+    let m;
+    while ((m = RE_BLOCK.exec(blob))) add(tenementKey(m[1], m[2], m[3]));
+    const compact = compactName(blob);
+    if (compact) add(st + ":" + compact);
+    return keys;
+  }
+
+  function companyLookupKeys(s) {
+    let n = String(s || "").toLowerCase();
+    n = n.replace(/\b(pty|ltd|limited|nl|inc|incorporated|the|company|co|corporation|corp|plc)\b/g, " ");
+    n = n.replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!n || n.length < 5) return [];
+    const parts = n.split(" ");
+    const out = [];
+    if (n.length >= 6) out.push(n);
+    if (parts.length >= 2) {
+      const two = parts[0] + " " + parts[1];
+      if (two.length >= 6) out.push(two);
+    }
+    if (parts[0] === "bhp") out.push("bhp");
+    if (parts[0] === "rio" && (parts.length === 1 || parts[1] === "tinto")) {
+      out.push("rio tinto");
+      out.push("rio");
+    }
+    const seen = {};
+    return out.filter(function (t) {
+      if (seen[t]) return false;
+      seen[t] = true;
+      return true;
+    });
+  }
+
+  function hexLookupKey(props) {
+    if (!props) return "";
+    const st = String(props.state || "").toLowerCase();
+    const lon = Number(props.lon);
+    const lat = Number(props.lat);
+    if (!st || !isFinite(lon) || !isFinite(lat)) return "";
+    return st + "|" + lon.toFixed(3) + "|" + lat.toFixed(3);
+  }
+
+  function ensureReports() {
+    if (reportsPack) return Promise.resolve(reportsPack);
+    if (reportsLoading) {
+      return new Promise(function (resolve) {
+        const t = setInterval(function () {
+          if (reportsPack || !reportsLoading) {
+            clearInterval(t);
+            resolve(reportsPack);
+          }
+        }, 80);
+      });
+    }
+    reportsLoading = true;
+    return fetch(assetUrl("data/reports_index.json"))
+      .then(function (r) {
+        if (!r.ok) throw new Error("reports_index HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (pack) {
+        reportsPack = pack;
+        reportsLoaded = true;
+        reportsLoading = false;
+        return pack;
+      })
+      .catch(function (err) {
+        reportsLoading = false;
+        log("Reports index: " + err.message);
+        return null;
+      });
+  }
+
+  function reportHref(r) {
+    if (!r) return "";
+    return safeHttpUrl(r.u);
+  }
+
+  function reportLabel(r) {
+    if (!r) return "";
+    const y = r.y != null ? " (" + r.y + ")" : "";
+    if (r.st === "wa" && r.a != null) return "WAMEX A" + r.a + " · " + (r.t || "") + y;
+    const portal = (reportsPack && reportsPack.portals && reportsPack.portals[r.st]) || {};
+    const who = portal.name ? portal.name + " · " : "";
+    return who + (r.t || "Report") + y;
+  }
+
+  function lookupReportsByKeys(keys, cos) {
+    const pack = reportsPack;
+    if (!pack) return { rows: [], total: 0 };
+    const seen = {};
+    const rows = [];
+    let total = 0;
+    function addList(obj, key) {
+      const ids = obj[key] || [];
+      const extra = obj[key + "#n"];
+      total += extra || ids.length;
+      ids.forEach(function (i) {
+        if (seen[i]) return;
+        seen[i] = true;
+        if (pack.reports[i]) rows.push(pack.reports[i]);
+      });
+    }
+    (keys || []).forEach(function (k) { addList(pack.by_key || {}, k); });
+    (cos || []).forEach(function (k) { addList(pack.by_co || {}, k); });
+    rows.sort(function (a, b) { return (b.y || 0) - (a.y || 0); });
+    if (total < rows.length) total = rows.length;
+    return { rows: rows, total: total };
+  }
+
+  function reportsForHex(props) {
+    if (!reportsPack || isDemoFlag(props.demo)) return { rows: [], total: 0, portal: null };
+    const hid = hexLookupKey(props);
+    const hexMap = reportsPack.hex || {};
+    const ids = hexMap[hid] || [];
+    const extra = hexMap[hid + "#n"];
+    const rows = ids.map(function (i) { return reportsPack.reports[i]; }).filter(Boolean);
+    let total = extra || rows.length;
+    if (!rows.length) {
+      const keys = [];
+      const cos = companyLookupKeys(props.top_operators || "");
+      const st = String(props.state || "").toLowerCase();
+      findIndex.forEach(function (it) {
+        if (it.kind !== "title" || itemIsDemo(it)) return;
+        if (st && String(it.state).toLowerCase() !== st) return;
+        if (it.lng == null) return;
+        // cheap bbox around hex centre (~0.18°)
+        if (Math.abs(it.lng - Number(props.lon)) > 0.2) return;
+        if (Math.abs(it.lat - Number(props.lat)) > 0.2) return;
+        extractTitleKeys(it.state, it.name || (it.props && it.props.name)).forEach(function (k) { keys.push(k); });
+        companyLookupKeys(it.holder).forEach(function (c) { cos.push(c); });
+      });
+      const found = lookupReportsByKeys(keys, cos);
+      return { rows: found.rows, total: found.total, portal: (reportsPack.portals || {})[st] };
+    }
+    if (total < rows.length) total = rows.length;
+    return { rows: rows, total: total, portal: (reportsPack.portals || {})[String(props.state || "").toLowerCase()] };
+  }
+
+  function reportsForTitle(props) {
+    if (!reportsPack || isDemoFlag(props.demo)) return { rows: [], total: 0 };
+    const st = String(props.state || "").toLowerCase();
+    const keys = extractTitleKeys(st, props.name || "");
+    const cos = companyLookupKeys(props.holder || "");
+    return lookupReportsByKeys(keys, cos);
+  }
+
+  function reportsHtml(found, cap) {
+    cap = cap || 8;
+    if (!found) return "";
+    const rows = found.rows || [];
+    const total = found.total || rows.length;
+    let html = '<div class="popup-links"><h4>Reports</h4>';
+    if (!rows.length) {
+      const p = found.portal;
+      if (p && p.home && !p.empty) {
+        html += '<a class="popup-link" href="' + escapeHtml(p.home) + '" target="_blank" rel="noopener">' +
+          escapeHtml((p.name || "Portal") + " search") + "</a>";
+      } else if (p && p.empty) {
+        html += '<p class="popup-more">No SA reports in the harvest (catalogue WAF 403).</p>';
+      } else {
+        html += '<p class="popup-more">No joined reports for this cell.</p>';
+      }
+      html += "</div>";
+      return html;
+    }
+    const show = rows.slice(0, cap);
+    show.forEach(function (r) {
+      if (isDemoString(r.t)) return;
+      const href = reportHref(r);
+      const label = reportLabel(r);
+      if (href) {
+        html += '<a class="popup-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener">' +
+          escapeHtml(label) + "</a>";
+      } else {
+        html += '<div class="popup-id">' + escapeHtml(label) + "</div>";
+      }
+    });
+    if (total > show.length) {
+      html += '<p class="popup-more">Showing ' + show.length.toLocaleString() + " of " + total.toLocaleString() + "</p>";
+    }
+    html += "</div>";
+    return html;
+  }
+
+  function exampleIdsHtml(props) {
+    const raw = props.sample_hole_ids || props.sample_ids || "";
+    if (isBlank(raw) || isDemoString(raw) || isDemoFlag(props.demo)) {
+      return escapeHtml(fillField(raw, DEMO_NA));
+    }
+    return String(raw)
+      .split(/[,;]+/)
+      .map(function (id) { return id.trim(); })
+      .filter(Boolean)
+      .map(function (id) {
+        return '<span class="popup-id">' + escapeHtml(id) + "</span>";
+      })
+      .join(", ");
+  }
+
+  function bindPinButton(props) {
+    const btn = document.getElementById("pin-this");
+    if (!btn || !props || !props.name) return;
+    btn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      pinTitleName(props.name);
+    });
+  }
+
+  function pinTitleName(name) {
+    if (!name || isDemoString(name)) return;
+    const pins = parseTitleList((groundTitles && groundTitles.value) || ground.titles.join(","));
+    if (pins.map(function (x) { return x.toLowerCase(); }).indexOf(String(name).toLowerCase()) < 0) {
+      pins.push(name);
+    }
+    if (groundTitles) groundTitles.value = pins.join(", ");
+    applyGroundFromForm(true);
+  }
+
+  function showTitleIdentify(lngLat, props) {
+    lastTitle = { name: props.name, holder: props.holder, state: props.state, lng: lngLat.lng, lat: lngLat.lat };
+    const extra = '<button type="button" class="popup-pin" id="pin-this">Pin this title</button><div id="popup-extra"></div>';
+    popup.setLngLat(lngLat).setHTML(popupHtml(props) + extra).addTo(map);
+    bindPinButton(props);
+    ensureReports().then(function () {
+      const el = document.getElementById("popup-extra");
+      if (el) el.innerHTML = reportsHtml(reportsForTitle(props), 8);
+    });
+  }
+
+  function showHexIdentify(lngLat, props, label) {
+    const rows = hexPopupHtml(props, label);
+    popup.setLngLat(lngLat).setHTML(rows + '<div id="popup-extra"><p class="popup-more">Loading reports…</p></div>').addTo(map);
+    const extraWait = function () {
+      const el = document.getElementById("popup-extra");
+      if (!el) return;
+      if (isDemoFlag(props.demo)) {
+        el.innerHTML = '<p class="popup-more">DEMO cell — no report links.</p>';
+        return;
+      }
+      el.innerHTML = reportsHtml(reportsForHex(props), 8);
+    };
+    if (reportsPack) extraWait();
+    else ensureReports().then(extraWait);
+  }
+
+  function showReportIdentify(lngLat, props) {
+    const n = Number(props.n) || 0;
+    const title = (props.tn || "Title") + (n ? " · " + n.toLocaleString() + " report" + (n === 1 ? "" : "s") : "");
+    let html = popupWrap("Reports", title, [
+      ["State", fillField(String(props.st || "").toUpperCase(), DEMO_NA)],
+      ["Title", fillField(props.tn, DEMO_NA)]
+    ]);
+    html += '<div id="popup-extra"></div>';
+    popup.setLngLat(lngLat).setHTML(html).addTo(map);
+    ensureReports().then(function (pack) {
+      const el = document.getElementById("popup-extra");
+      if (!el || !pack) return;
+      const ids = String(props.ids || "").split(",").map(function (x) { return parseInt(x, 10); }).filter(function (x) { return !isNaN(x); });
+      // geojson may stringify arrays
+      let idList = props.ids;
+      if (typeof idList === "string") {
+        try { idList = JSON.parse(idList); } catch (e) {
+          idList = idList.split(/[,\s]+/).map(Number).filter(function (x) { return !isNaN(x); });
+        }
+      }
+      const rows = (idList || []).map(function (i) { return pack.reports[i]; }).filter(Boolean);
+      const found = { rows: rows, total: n || rows.length, portal: (pack.portals || {})[props.st] };
+      if (!rows.length && props.tn) {
+        const alt = lookupReportsByKeys(extractTitleKeys(props.st, props.tn), []);
+        found.rows = alt.rows;
+        found.total = alt.total || n;
+      }
+      el.innerHTML = reportsHtml(found, 8);
+    });
+  }
+
+  function readStoredGround() {
+    try {
+      return JSON.parse(localStorage.getItem(GROUND_KEY) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeStoredGround() {
+    try {
+      localStorage.setItem(GROUND_KEY, JSON.stringify(ground));
+    } catch (e) {}
+  }
+
+  function formToGround() {
+    ground = {
+      name: groundName ? String(groundName.value || "").trim() : "",
+      company: groundCompany ? String(groundCompany.value || "").trim() : "",
+      titles: groundTitles ? parseTitleList(groundTitles.value) : []
+    };
+    const vsRaw = groundVs ? String(groundVs.value || "").trim() : "";
+    if (vsRaw) {
+      const parts = vsRaw.split(/[,/|]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+      vsPair = parts.length >= 2 ? [parts[0], parts[1]] : null;
+    } else {
+      vsPair = null;
+    }
+  }
+
+  function groundToForm() {
+    if (groundName) groundName.value = ground.name || "";
+    if (groundCompany) groundCompany.value = ground.company || "";
+    if (groundTitles) groundTitles.value = (ground.titles || []).join(", ");
+    if (groundVs) groundVs.value = vsPair ? vsPair.join(", ") : "";
+  }
+
+  function syncShareUrl() {
+    const u = new URL(window.location.href);
+    ["company", "vs", "titles", "name"].forEach(function (k) { u.searchParams.delete(k); });
+    if (vsPair && vsPair[0] && vsPair[1]) u.searchParams.set("vs", vsPair[0] + "," + vsPair[1]);
+    else if (ground.company) u.searchParams.set("company", ground.company);
+    if (ground.titles && ground.titles.length) u.searchParams.set("titles", ground.titles.join(","));
+    if (ground.name) u.searchParams.set("name", ground.name);
+    history.replaceState(null, "", u.pathname + u.search + u.hash);
+  }
+
+  function loadGroundFromUrlOrStorage() {
+    const u = new URL(window.location.href);
+    const stored = readStoredGround();
+    ground = {
+      name: u.searchParams.get("name") || stored.name || "",
+      company: u.searchParams.get("company") || stored.company || "",
+      titles: parseTitleList(u.searchParams.get("titles") || (stored.titles || []).join(","))
+    };
+    const vs = u.searchParams.get("vs");
+    if (vs) {
+      const parts = vs.split(/[,/|]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+      vsPair = parts.length >= 2 ? [parts[0], parts[1]] : null;
+    } else if (stored.vs && stored.vs.length >= 2) {
+      vsPair = [stored.vs[0], stored.vs[1]];
+    } else {
+      vsPair = null;
+    }
+    groundToForm();
+  }
+
+  function holdersMatching(q) {
+    const out = {};
+    if (!q) return [];
+    findIndex.forEach(function (it) {
+      if (it.kind !== "title" || itemIsDemo(it)) return;
+      if (holderMatchesCompany(it.holder || "", q)) out[it.holder] = true;
+    });
+    titleHolders.forEach(function (h) {
+      if (holderMatchesCompany(h, q)) out[h] = true;
+    });
+    return Object.keys(out);
+  }
+
+  function countTitlesForCompany(q) {
+    let n = 0;
+    findIndex.forEach(function (it) {
+      if (it.kind !== "title" || itemIsDemo(it) || it.life === "dead") return;
+      if (holderMatchesCompany(it.holder || "", q)) n++;
+    });
+    return n;
+  }
+
+  function applyGroundFilters() {
+    const pins = ground.titles || [];
+    const company = ground.company;
+    const vs = vsPair;
+    STATES.forEach(function (s) {
+      ["live", "dead"].forEach(function (life) {
+        const fill = layerId(s.id, life) + "-fill";
+        const line = layerId(s.id, life) + "-line";
+        if (!map.getLayer(fill)) return;
+        if (vs && vs[0] && vs[1]) {
+          const ha = holdersMatching(vs[0]);
+          const hb = holdersMatching(vs[1]);
+          const all = ha.concat(hb);
+          if (!all.length) {
+            map.setFilter(fill, ["==", ["get", "name"], "__none__"]);
+            map.setFilter(line, ["==", ["get", "name"], "__none__"]);
+          } else {
+            const f = ["in", ["get", "holder"], ["literal", all]];
+            map.setFilter(fill, f);
+            map.setFilter(line, f);
+            map.setPaintProperty(fill, "fill-color", [
+              "case",
+              ["in", ["get", "holder"], ["literal", ha.length ? ha : ["__none__"]]],
+              VS_A_COLOR,
+              VS_B_COLOR
+            ]);
+            map.setPaintProperty(line, "line-color", [
+              "case",
+              ["in", ["get", "holder"], ["literal", ha.length ? ha : ["__none__"]]],
+              VS_A_COLOR,
+              VS_B_COLOR
+            ]);
+          }
+          return;
+        }
+        map.setPaintProperty(fill, "fill-color", s.color);
+        map.setPaintProperty(line, "line-color", s.color);
+        const clauses = [];
+        if (company) {
+          const hs = holdersMatching(company);
+          if (hs.length) clauses.push(["in", ["get", "holder"], ["literal", hs]]);
+          else clauses.push(["==", ["get", "name"], "__none__"]);
+        }
+        if (pins.length) {
+          clauses.push(["in", ["downcase", ["to-string", ["get", "name"]]], ["literal", pins.map(function (p) { return p.toLowerCase(); })]]);
+        }
+        if (clauses.length && !findQuery) {
+          const f = clauses.length === 1 ? clauses[0] : ["any"].concat(clauses);
+          map.setFilter(fill, f);
+          map.setFilter(line, f);
+        } else if (findQuery) {
+          map.setFilter(fill, titleSearchFilter(findQuery));
+          map.setFilter(line, titleSearchFilter(findQuery));
+        } else {
+          map.setFilter(fill, null);
+          map.setFilter(line, null);
+        }
+      });
+    });
+    if (groundStatus) {
+      if (vs && vs[0] && vs[1]) {
+        const na = countTitlesForCompany(vs[0]);
+        const nb = countTitlesForCompany(vs[1]);
+        groundStatus.textContent = vs[0] + " " + na.toLocaleString() + " vs " + vs[1] + " " + nb.toLocaleString() + " live titles. Share this URL.";
+      } else if (company || pins.length) {
+        const n = company ? countTitlesForCompany(company) : 0;
+        groundStatus.textContent = (ground.name ? ground.name + " · " : "") +
+          (company ? company + " · " + n.toLocaleString() + " live titles" : "") +
+          (pins.length ? (company ? " · " : "") + pins.length + " pinned" : "") +
+          ". Saved in this browser.";
+      } else {
+        groundStatus.textContent = "Saved in this browser. Share with ?company=BHP or ?vs=BHP,RIO.";
+      }
+    }
+    updateLegend();
+  }
+
+  function applyGroundFromForm(persist) {
+    formToGround();
+    if (persist) {
+      const stored = { name: ground.name, company: ground.company, titles: ground.titles, vs: vsPair };
+      try { localStorage.setItem(GROUND_KEY, JSON.stringify(stored)); } catch (e) {}
+      syncShareUrl();
+    }
+    applyGroundFilters();
+    if (vsPair && vsPair[0]) {
+      ensureLiveForCompany(vsPair[0]);
+      ensureLiveForCompany(vsPair[1]);
+    } else if (ground.company) {
+      ensureLiveForCompany(ground.company);
+    }
+  }
+
+  function ensureLiveForCompany(q) {
+    const states = {};
+    findIndex.forEach(function (it) {
+      if (it.kind !== "title" || it.life === "dead") return;
+      if (holderMatchesCompany(it.holder || "", q)) states[it.state] = true;
+    });
+    Object.keys(states).forEach(ensureLiveTitleOn);
+  }
+
+  function initGroundUi() {
+    loadGroundFromUrlOrStorage();
+    if (groundApply) groundApply.addEventListener("click", function () { applyGroundFromForm(true); });
+    if (groundClear) groundClear.addEventListener("click", function () {
+      ground = { name: "", company: "", titles: [] };
+      vsPair = null;
+      groundToForm();
+      try { localStorage.removeItem(GROUND_KEY); } catch (e) {}
+      syncShareUrl();
+      applyGroundFilters();
+    });
+    if (groundPin) groundPin.addEventListener("click", function () {
+      if (lastTitle && lastTitle.name) pinTitleName(lastTitle.name);
+    });
+    ["change", "keydown"].forEach(function (ev) {
+      [groundCompany, groundVs, groundTitles, groundName].forEach(function (el) {
+        if (!el) return;
+        el.addEventListener(ev, function (e) {
+          if (ev === "keydown" && e.key !== "Enter") return;
+          applyGroundFromForm(true);
+        });
+      });
+    });
+  }
+
+  function pointInBox(lng, lat, b) {
+    return lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north;
+  }
+
+  function geomBbox(geom) {
+    if (!geom) return null;
+    let minX = 180, minY = 90, maxX = -180, maxY = -90;
+    function walk(c) {
+      if (typeof c[0] === "number") {
+        if (c[0] < minX) minX = c[0];
+        if (c[1] < minY) minY = c[1];
+        if (c[0] > maxX) maxX = c[0];
+        if (c[1] > maxY) maxY = c[1];
+      } else c.forEach(walk);
+    }
+    walk(geom.coordinates || []);
+    return [minX, minY, maxX, maxY];
+  }
+
+  function bboxHits(a, b) {
+    return !(a[2] < b.west || a[0] > b.east || a[3] < b.south || a[1] > b.north);
+  }
+
+  function showBoxOnMap(b) {
+    const ring = [
+      [b.west, b.south], [b.east, b.south], [b.east, b.north], [b.west, b.north], [b.west, b.south]
+    ];
+    const gj = { type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [ring] }, properties: {} }] };
+    if (!map.getSource("box-sel")) {
+      map.addSource("box-sel", { type: "geojson", data: gj });
+      map.addLayer({
+        id: "box-sel-line",
+        type: "line",
+        source: "box-sel",
+        paint: { "line-color": "#3d9cf0", "line-width": 2, "line-dasharray": [2, 1] }
+      });
+      map.addLayer({
+        id: "box-sel-fill",
+        type: "fill",
+        source: "box-sel",
+        paint: { "fill-color": "#3d9cf0", "fill-opacity": 0.08 }
+      }, "box-sel-line");
+    } else {
+      map.getSource("box-sel").setData(gj);
+    }
+    map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 48, maxZoom: 10, duration: 500 });
+  }
+
+  function packRow(label, sub, onClick, href) {
+    const subHtml = href
+      ? '<span><a href="' + escapeHtml(href) + '" target="_blank" rel="noopener">' + escapeHtml(sub) + "</a></span>"
+      : "<span>" + escapeHtml(sub) + "</span>";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pack-row";
+    btn.innerHTML = "<strong>" + escapeHtml(label) + "</strong>" + subHtml;
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  function renderPack(bounds) {
+    lastBoxBounds = bounds;
+    if (!packEl || !packBody) return;
+    packEl.hidden = false;
+    packBody.innerHTML = "<p class='note'>Collecting features in the box…</p>";
+    if (!occLoaded && !occLoading) loadOccurrences();
+    if (!holesLoaded && !holesLoading) loadHex("holes");
+    if (!gchemLoaded && !gchemLoading) loadHex("gchem");
+    ensureReports().then(function () {
+      const titles = [];
+      const occs = [];
+      const holes = [];
+      const gchems = [];
+      findIndex.forEach(function (it) {
+        if (itemIsDemo(it) || it.lng == null) return;
+        if (it.kind === "title" && it.life !== "dead" && pointInBox(it.lng, it.lat, bounds)) titles.push(it);
+        else if (it.kind === "occ" && pointInBox(it.lng, it.lat, bounds)) occs.push(it);
+      });
+      function collectHex(kind, store, dest) {
+        const gj = store[kind];
+        if (gj && gj.features) {
+          gj.features.forEach(function (f) {
+            const p = f.properties || {};
+            if (isDemoFlag(p.demo)) return;
+            const bb = geomBbox(f.geometry);
+            if (bb && bboxHits(bb, bounds)) dest.push({ kind: kind, props: p, lng: p.lon, lat: p.lat, name: (p.n != null ? Number(p.n).toLocaleString() + " " : "") + (kind === "holes" ? "holes" : "samples") });
+          });
+        } else {
+          findIndex.forEach(function (it) {
+            if (it.kind === kind && !itemIsDemo(it) && pointInBox(it.lng, it.lat, bounds)) dest.push(it);
+          });
+        }
+      }
+      collectHex("holes", hexStore, holes);
+      collectHex("gchem", hexStore, gchems);
+
+      const keys = [];
+      const cos = [];
+      titles.forEach(function (it) {
+        extractTitleKeys(it.state, it.name || (it.props && it.props.name)).forEach(function (k) { keys.push(k); });
+        companyLookupKeys(it.holder).forEach(function (c) { cos.push(c); });
+      });
+      holes.concat(gchems).forEach(function (it) {
+        const p = it.props || {};
+        companyLookupKeys(p.top_operators || it.operator || "").forEach(function (c) { cos.push(c); });
+      });
+      const found = lookupReportsByKeys(keys, cos);
+
+      function section(title, arr, cap, render) {
+        const wrap = document.createElement("div");
+        wrap.className = "pack-section";
+        const h = document.createElement("h3");
+        const shown = Math.min(arr.length, cap);
+        h.textContent = title + " · " + (arr.length > cap ? "Showing " + shown + " of " + arr.length : String(arr.length));
+        wrap.appendChild(h);
+        if (!arr.length) {
+          const p = document.createElement("p");
+          p.className = "note";
+          p.textContent = "None in this box.";
+          wrap.appendChild(p);
+        }
+        arr.slice(0, cap).forEach(function (it) { wrap.appendChild(render(it)); });
+        return wrap;
+      }
+
+      packBody.innerHTML = "";
+      packBody.appendChild(section("Live titles", titles, PACK_CAP.title, function (it) {
+        return packRow(hitLabel(it), hitSub(it), function () {
+          map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 9) });
+          showTitleIdentify({ lng: it.lng, lat: it.lat }, it.props || { name: it.name, holder: it.holder, state: it.state, tenure: it.tenure });
+        });
+      }));
+      packBody.appendChild(section("Occurrences", occs, PACK_CAP.occ, function (it) {
+        return packRow(hitLabel(it), hitSub(it), function () {
+          map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 9) });
+          popup.setLngLat([it.lng, it.lat]).setHTML(occPopupHtml(it.props || {})).addTo(map);
+        });
+      }));
+      packBody.appendChild(section("Hole hexes", holes, PACK_CAP.holes, function (it) {
+        return packRow(it.name || "Hole cell", (it.props && it.props.state || it.state || "").toUpperCase() + " · " + (it.props && it.props.top_operators || ""), function () {
+          map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 7) });
+          showHexIdentify({ lng: it.lng, lat: it.lat }, it.props || {}, "Holes");
+        });
+      }));
+      packBody.appendChild(section("Geochem hexes", gchems, PACK_CAP.gchem, function (it) {
+        return packRow(it.name || "Sample cell", (it.props && it.props.state || it.state || "").toUpperCase(), function () {
+          map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 7) });
+          showHexIdentify({ lng: it.lng, lat: it.lat }, it.props || {}, "Samples");
+        });
+      }));
+      const reports = found.rows;
+      packBody.appendChild(section("Reports", reports, PACK_CAP.report, function (r) {
+        const href = reportHref(r);
+        return packRow(reportLabel(r), (r.st || "").toUpperCase() + (href ? " · open source" : ""), function () {
+          if (href) window.open(href, "_blank", "noopener");
+        }, href);
+      }));
+      if (reportsPack && reportsPack.portals && reportsPack.portals.sa && reportsPack.portals.sa.empty) {
+        const note = document.createElement("p");
+        note.className = "note";
+        note.textContent = "SA reports were not harvested (SARIG CSW WAF 403).";
+        packBody.appendChild(note);
+      }
+    });
+  }
+
+  function screenToLngLat(ev) {
+    const rect = map.getCanvas().getBoundingClientRect();
+    return map.unproject([ev.clientX - rect.left, ev.clientY - rect.top]);
+  }
+
+  function updateDrawRect(ev) {
+    if (!boxStart || !drawBoxEl) return;
+    const rect = map.getCanvas().getBoundingClientRect();
+    const x0 = boxStart.px;
+    const y0 = boxStart.py;
+    const x1 = ev.clientX - rect.left;
+    const y1 = ev.clientY - rect.top;
+    const left = Math.min(x0, x1) + rect.left - map.getContainer().getBoundingClientRect().left;
+    const top = Math.min(y0, y1) + rect.top - map.getContainer().getBoundingClientRect().top;
+    drawBoxEl.hidden = false;
+    drawBoxEl.style.left = Math.min(ev.clientX, boxStart.cx) + "px";
+    drawBoxEl.style.top = Math.min(ev.clientY, boxStart.cy) + "px";
+    drawBoxEl.style.width = Math.abs(ev.clientX - boxStart.cx) + "px";
+    drawBoxEl.style.height = Math.abs(ev.clientY - boxStart.cy) + "px";
+  }
+
+  function finishBox(ev) {
+    if (!boxDrawing || !boxStart) return;
+    boxDrawing = false;
+    map.dragPan.enable();
+    if (drawBoxEl) drawBoxEl.hidden = true;
+    const a = boxStart.ll;
+    const b = screenToLngLat(ev);
+    const west = Math.min(a.lng, b.lng);
+    const east = Math.max(a.lng, b.lng);
+    const south = Math.min(a.lat, b.lat);
+    const north = Math.max(a.lat, b.lat);
+    boxDrawMode = false;
+    if (boxTool) boxTool.classList.remove("active");
+    skipNextClick = true;
+    if (Math.abs(east - west) < 0.01 && Math.abs(north - south) < 0.01) return;
+    const bounds = { west: west, south: south, east: east, north: north };
+    showBoxOnMap(bounds);
+    renderPack(bounds);
+  }
+
+  function initBoxTool() {
+    if (boxTool) {
+      boxTool.addEventListener("click", function () {
+        boxDrawMode = !boxDrawMode;
+        boxTool.classList.toggle("active", boxDrawMode);
+      });
+    }
+    if (packClose) packClose.addEventListener("click", function () {
+      if (packEl) packEl.hidden = true;
+    });
+    map.getCanvas().addEventListener("mousedown", function (ev) {
+      if (!(ev.shiftKey || boxDrawMode) || ev.button !== 0) return;
+      ev.preventDefault();
+      map.dragPan.disable();
+      boxDrawing = true;
+      const rect = map.getCanvas().getBoundingClientRect();
+      boxStart = {
+        ll: screenToLngLat(ev),
+        cx: ev.clientX,
+        cy: ev.clientY,
+        px: ev.clientX - rect.left,
+        py: ev.clientY - rect.top
+      };
+    });
+    window.addEventListener("mousemove", function (ev) {
+      if (!boxDrawing) return;
+      updateDrawRect(ev);
+    });
+    window.addEventListener("mouseup", function (ev) {
+      if (!boxDrawing) return;
+      finishBox(ev);
+    });
+  }
+
+  function loadReportsPts() {
+    if (reportsPtsLoaded) {
+      ["rpt-clusters", "rpt-cluster-count", "rpt-point"].forEach(function (id) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", reportsMaster && reportsMaster.checked ? "visible" : "none");
+      });
+      return Promise.resolve();
+    }
+    return fetch(assetUrl("data/reports_pts.geojson"))
+      .then(function (r) {
+        if (!r.ok) throw new Error("reports_pts HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (gj) {
+        if (!map.getSource("reports")) {
+          map.addSource("reports", {
+            type: "geojson",
+            data: gj,
+            cluster: true,
+            clusterMaxZoom: 8,
+            clusterRadius: 48
+          });
+          map.addLayer({
+            id: "rpt-clusters",
+            type: "circle",
+            source: "reports",
+            filter: ["has", "point_count"],
+            paint: {
+              "circle-color": "#7ec4ff",
+              "circle-radius": ["step", ["get", "point_count"], 10, 10, 14, 50, 18],
+              "circle-opacity": 0.8,
+              "circle-stroke-width": 1,
+              "circle-stroke-color": "#1b2430"
+            }
+          });
+          map.addLayer({
+            id: "rpt-cluster-count",
+            type: "symbol",
+            source: "reports",
+            filter: ["has", "point_count"],
+            layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 11 },
+            paint: { "text-color": "#1b2430" }
+          });
+          map.addLayer({
+            id: "rpt-point",
+            type: "circle",
+            source: "reports",
+            filter: ["!", ["has", "point_count"]],
+            paint: {
+              "circle-color": "#7ec4ff",
+              "circle-radius": 5,
+              "circle-opacity": 0.85,
+              "circle-stroke-width": 0.8,
+              "circle-stroke-color": "#0b1220"
+            }
+          });
+          map.on("mouseenter", "rpt-point", function () { map.getCanvas().style.cursor = "pointer"; });
+          map.on("mouseleave", "rpt-point", function () { map.getCanvas().style.cursor = ""; });
+          map.on("click", "rpt-clusters", function (e) {
+            const f = (e.features || [])[0];
+            if (!f) return;
+            map.getSource("reports").getClusterExpansionZoom(f.properties.cluster_id).then(function (z) {
+              map.easeTo({ center: f.geometry.coordinates, zoom: z });
+            });
+          });
+        }
+        reportsPtsLoaded = true;
+        ["rpt-clusters", "rpt-cluster-count", "rpt-point"].forEach(function (id) {
+          if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", reportsMaster && reportsMaster.checked ? "visible" : "none");
+        });
+      })
+      .catch(function (err) {
+        log("Reports layer: " + err.message);
+        if (reportsMaster) reportsMaster.checked = false;
+      });
+  }
+
+  if (reportsMaster) {
+    reportsMaster.addEventListener("change", function () {
+      if (reportsMaster.checked) {
+        const more = document.getElementById("more-group");
+        if (more) more.open = true;
+        loadReportsPts();
+        ensureReports();
+      } else if (reportsPtsLoaded) {
+        ["rpt-clusters", "rpt-cluster-count", "rpt-point"].forEach(function (id) {
+          if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
+        });
+      }
+      updateLegend();
+    });
+  }
+
+
   map.on("click", function (e) {
+    if (skipNextClick) { skipNextClick = false; return; }
+    if (boxDrawing) return;
     const tLayers = titleFillIds();
     if (tLayers.length) {
       const titles = map.queryRenderedFeatures(e.point, { layers: tLayers });
       if (titles.length) {
-        popup.setLngLat(e.lngLat).setHTML(popupHtml(titles[0].properties || {})).addTo(map);
+        showTitleIdentify(e.lngLat, titles[0].properties || {});
+        return;
+      }
+    }
+    if (map.getLayer("rpt-point") && reportsMaster && reportsMaster.checked) {
+      const rpts = map.queryRenderedFeatures(e.point, { layers: ["rpt-point"] });
+      if (rpts.length) {
+        showReportIdentify(e.lngLat, rpts[0].properties || {});
         return;
       }
     }
@@ -1678,14 +2649,14 @@
     if (map.getLayer("holes-hex") && holesMaster.checked) {
       const hx = map.queryRenderedFeatures(e.point, { layers: ["holes-hex"] });
       if (hx.length) {
-        popup.setLngLat(e.lngLat).setHTML(hexPopupHtml(hx[0].properties || {}, "Holes")).addTo(map);
+        showHexIdentify(e.lngLat, hx[0].properties || {}, "Holes");
         return;
       }
     }
     if (map.getLayer("gchem-hex") && gchemMaster.checked) {
       const gx = map.queryRenderedFeatures(e.point, { layers: ["gchem-hex"] });
       if (gx.length) {
-        popup.setLngLat(e.lngLat).setHTML(hexPopupHtml(gx[0].properties || {}, "Samples")).addTo(map);
+        showHexIdentify(e.lngLat, gx[0].properties || {}, "Samples");
         return;
       }
     }
@@ -1755,6 +2726,10 @@
             return a + ((layerMeta[s.id + "_dead"] || {}).features || 0);
           }, 0);
           log("Ready · " + live.toLocaleString() + " live titles");
+          initGroundUi();
+          initBoxTool();
+          applyGroundFilters();
+          ensureReports();
           if (findQuery && findInput) runFind(findInput.value);
           updateLegend();
         });

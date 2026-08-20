@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Xplorr</title>
   <link rel="stylesheet" href="vendor/maplibre-gl.css" />
-  <link rel="stylesheet" href="app.css" />
+  <link rel="stylesheet" href="app.css?v=20260820" />
 </head>
 <body>
   <aside id="panel">
@@ -19,7 +19,20 @@
       <summary>Find</summary>
       <input type="search" id="find" placeholder="Title number, company, occurrence…" autocomplete="off" />
       <div id="find-results" hidden></div>
-      <p class="note">Click a result or the map.</p>
+      <p class="note">Click a result or the map. Compare with vs=BHP,RIO in the URL.</p>
+      <div class="myground">
+        <h3>My ground</h3>
+        <input type="text" id="ground-name" placeholder="Name (optional)" autocomplete="off" />
+        <input type="text" id="ground-company" placeholder="Company — e.g. BHP" autocomplete="off" />
+        <input type="text" id="ground-vs" placeholder="Compare — e.g. BHP, RIO" autocomplete="off" />
+        <input type="text" id="ground-titles" placeholder="Pinned title numbers" autocomplete="off" />
+        <div class="kind-actions">
+          <button type="button" id="ground-pin">Pin selected title</button>
+          <button type="button" id="ground-apply">Apply</button>
+          <button type="button" id="ground-clear">Clear</button>
+        </div>
+        <p class="note" id="ground-status">Saved in this browser. Share with ?company=BHP or ?vs=BHP,RIO.</p>
+      </div>
     </details>
 
     <details class="group" open>
@@ -76,6 +89,10 @@
         <span>many</span>
       </div>
 
+      <h3>Reports</h3>
+      <label class="row"><input type="checkbox" id="reports-master" /> Joined reports (title centroids)</label>
+      <p class="note">Off by default. Only reports located via a real tenement join. SA catalogue is empty (WAF 403).</p>
+
       <h3>Dead / historic</h3>
       <label class="row"><input type="checkbox" id="dead-master" /> Enable dead layers</label>
       <div id="dead-toggles" class="disabled"></div>
@@ -93,8 +110,19 @@
     </footer>
   </aside>
   <div id="map"></div>
+  <div id="map-tools">
+    <button type="button" id="box-tool" title="Draw a box (or shift-drag)">Box pack</button>
+  </div>
+  <div id="draw-box" hidden></div>
+  <aside id="pack" hidden>
+    <header>
+      <h2>Box pack</h2>
+      <button type="button" id="pack-close" aria-label="Close">×</button>
+    </header>
+    <div id="pack-body"></div>
+  </aside>
   <div id="popup" class="hidden"></div>
   <script src="vendor/maplibre-gl.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260820"></script>
 </body>
 </html>

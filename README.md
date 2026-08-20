@@ -65,3 +65,15 @@ Same hex size (`data/geochem_hex.geojson`, 2,569 cells) with the same style of r
 - Harvest corpus (~15 GB) is not in this repo.
 - NSW 1.7 GB detailed geology, 89 province zips, VIC geol100 / sg 250k, GA 1:2.5M shapefile — kinds + GA WMTS already cover geology.
 - WA dead titles (~510k) still omitted.
+
+## Usefulness (2026-08-20)
+
+Five map-side tools. Harvest report catalogues stay out of this repo; only a slim join index and title-centroid overlay are shipped.
+
+1. **Hex click-through** — hole/geochem identify cards add report links (title, year, official portal URL). Hole IDs stay as text unless a real portal URL exists (none do for the sample IDs). Joins use tenement IDs extracted from report metadata against live titles already on the map, plus distinctive company tokens vs hex operators / title holders. DEMO cells get no links.
+2. **Box pack** — Box pack button or shift-drag a rectangle. A pack lists live titles, occurrences, hole/geochem hexes, and joined reports in the box (capped with “Showing N of M”). No backend.
+3. **My ground** — pin a company and/or title numbers (optional name). Persists in `localStorage`. Share `?company=BHP` or `?vs=BHP,RIO`. No accounts, no PAT.
+4. **Reports layer** — off by default. Clustered points at **title centroids after a tenement join**. Catalogues with no geometry and no join are not scattered. SA reports are empty (SARIG CSW WAF 403).
+5. **Company vs company** — `?vs=BHP,RIO` colours two holder sets and leaves identify working. Token match so `RIO` is Rio Tinto, not Marion.
+
+Report URLs are taken from the harvest (DIGS / GEMIS / MRT / GSV / WAMEX portal home + A-number) or the official GSQ CKAN dataset page built from the harvested package id. PDFs are not downloaded.
