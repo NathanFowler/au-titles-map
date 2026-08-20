@@ -281,18 +281,73 @@
     return popupWrap("Geology", "GA surface geology", rows);
   }
 
+  function occRowDemo(r) {
+    return isDemoFlag(r && r[7]);
+  }
+
+  function occRowPri(r) {
+    return r && (r[16] === 1 || r[16] === true || r[16] === "1");
+  }
+
+  function occProps(r) {
+    return {
+      state: r[0],
+      name: r[3] || "",
+      comm: r[4] || "",
+      kind: r[5] || "",
+      status: r[6] || "",
+      demo: occRowDemo(r),
+      field: r[8] || "",
+      work: r[9] || "",
+      host: r[10] || "",
+      style: r[11] || "",
+      size: r[12] || "",
+      prod: r[13] || "",
+      sid: r[14] || "",
+      url: r[15] || "",
+      pri: occRowPri(r)
+    };
+  }
+
   function occPopupHtml(props) {
-    const demo = props.demo === true || props.demo === "true" || props.demo === 1;
-    const name = fillField(props.name, "DEMO unnamed occurrence");
-    const rows = [
-      ["State", fillField(props.state, DEMO_NA)],
-      ["Commodity", fillField(props.comm, DEMO_NA)],
-      ["Type", fillField(props.kind, "DEMO prospect")],
-      ["Status", fillField(props.status, DEMO_NA)],
-      ["Licence", props.state === "wa" ? "WA MINEDEX CC BY-NC 4.0" : fillField("", DEMO_NA)]
-    ];
+    const demo = isDemoFlag(props.demo);
+    const name = demo
+      ? fillField(props.name, "DEMO unnamed occurrence")
+      : (isBlank(props.name) ? "Unnamed occurrence" : String(props.name));
+    const rows = [];
+    function add(label, val, force) {
+      if (demo) {
+        rows.push([label, fillField(val, DEMO_NA)]);
+        return;
+      }
+      if (force || !isBlank(val)) rows.push([label, val]);
+    }
+    add("State", props.state ? String(props.state).toUpperCase() : "", true);
+    add("Commodity", props.comm);
+    add("Type", props.kind);
+    add("Status", props.status);
+    add("Field", props.field);
+    add("Workings", props.work);
+    add("Host", props.host);
+    add("Style", props.style);
+    add("Size", props.size);
+    add("Production", props.prod);
+    add("Source id", props.sid);
+    if (String(props.state || "").toLowerCase() === "wa") {
+      rows.push(["Licence", "WA MINEDEX CC BY-NC 4.0"]);
+    } else if (demo) {
+      rows.push(["Licence", DEMO_NA]);
+    }
     if (demo) rows.push(["Note", "DEMO — not a real occurrence"]);
-    return popupWrap("Occurrence", name, rows);
+    let html = popupWrap("Occurrence", name, rows);
+    const href = safeHttpUrl(props.url);
+    if (href) {
+      html +=
+        '<div class="popup-links"><a class="popup-link" href="' +
+        escapeHtml(href) +
+        '" target="_blank" rel="noopener">Source record</a></div>';
+    }
+    return html;
   }
 
   function hexPopupHtml(props, label) {
@@ -400,10 +455,12 @@
 
   function occRowMatches(r, q) {
     if (!q) return true;
-    if (isDemoFlag(r[7])) return false;
+    if (occRowDemo(r)) return false;
     const texts = [];
     addSearchText(texts, r[3]);
     addSearchText(texts, r[4]);
+    addSearchText(texts, r[8]);
+    addSearchText(texts, r[14]);
     addSearchText(texts, r.company);
     addSearchText(texts, r.operator);
     addSearchText(texts, r.owner);
@@ -460,23 +517,16 @@
     if (occIndexed) return;
     occIndexed = true;
     (pack.rows || []).forEach(function (r) {
-      const demo = isDemoFlag(r[7]);
+      const props = occProps(r);
       findIndex.push({
         kind: "occ",
         state: r[0],
-        name: r[3] || "",
-        comm: r[4] || "",
+        name: props.name,
+        comm: props.comm,
         lng: r[1],
         lat: r[2],
-        demo: demo,
-        props: {
-          state: r[0],
-          name: r[3] || "",
-          comm: r[4] || "",
-          kind: r[5] || "",
-          status: r[6] || "",
-          demo: demo
-        }
+        demo: props.demo,
+        props: props
       });
     });
   }
@@ -749,7 +799,7 @@
           if (it.kind === "title") showTitleIdentify({ lng: it.lng, lat: it.lat }, it.props || {});
           else if (it.kind === "holes") showHexIdentify({ lng: it.lng, lat: it.lat }, it.props || {}, "Holes");
           else if (it.kind === "gchem") showHexIdentify({ lng: it.lng, lat: it.lat }, it.props || {}, "Samples");
-          else popup.setLngLat([it.lng, it.lat]).setHTML(hitPopupHtml(it)).addTo(map);
+          else showOccIdentify({ lng: it.lng, lat: it.lat }, it.props || {});
         });
       });
       if (!findUserPicked) fitFindHits(allHits);
@@ -777,7 +827,7 @@
     });
     if (occMaster && occMaster.checked) {
       rows.push(
-        '<div class="legend-row"><span class="swatch round" style="background:#f2c14e"></span><span>Occurrence / mine</span></div>'
+        '<div class="legend-row"><span class="swatch round" style="background:#f2c14e"></span><span>Named / sized occurrence</span></div>'
       );
     }
     if (kindsMaster && kindsMaster.checked) {
@@ -1232,7 +1282,8 @@
     (states || []).forEach(function (s) { allow[s] = true; });
     const allowMin = {};
     selectedMinerals().forEach(function (m) { allowMin[m] = true; });
-    const feats = [];
+    const pri = [];
+    const sec = [];
     (pack.rows || []).forEach(function (r) {
       if (!allow[r[0]]) return;
       if (findQuery) {
@@ -1245,20 +1296,19 @@
         }
         if (!ok) return;
       }
-      feats.push({
+      const props = occProps(r);
+      const feat = {
         type: "Feature",
         geometry: { type: "Point", coordinates: [r[1], r[2]] },
-        properties: {
-          state: r[0],
-          name: r[3] || "",
-          comm: r[4] || "",
-          kind: r[5] || "",
-          status: r[6] || "",
-          demo: r[7] === true || r[7] === 1
-        }
-      });
+        properties: props
+      };
+      if (findQuery || props.pri) pri.push(feat);
+      else sec.push(feat);
     });
-    return { type: "FeatureCollection", features: feats };
+    return {
+      pri: { type: "FeatureCollection", features: pri },
+      sec: { type: "FeatureCollection", features: sec }
+    };
   }
 
   function stateColorExpr() {
@@ -1319,17 +1369,20 @@
     map.setFilter(layer, filter);
   }
 
+  const OCC_LAYERS = ["occ-clusters", "occ-cluster-count", "occ-point", "occ-sec-point"];
+
   function applyOccFilter() {
     if (!occPack || !map.getSource("occ")) return;
     if (!occMaster.checked) {
-      ["occ-clusters", "occ-cluster-count", "occ-point"].forEach(function (id) {
+      OCC_LAYERS.forEach(function (id) {
         if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
       });
       return;
     }
     const gj = occToGJ(occPack, selectedOverlayStates(occBox));
-    map.getSource("occ").setData(gj);
-    ["occ-clusters", "occ-cluster-count", "occ-point"].forEach(function (id) {
+    map.getSource("occ").setData(gj.pri);
+    if (map.getSource("occ-sec")) map.getSource("occ-sec").setData(gj.sec);
+    OCC_LAYERS.forEach(function (id) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "visible");
     });
   }
@@ -1342,7 +1395,7 @@
     if (occLoading) return Promise.resolve();
     occLoading = true;
     log("Loading occurrences…");
-    return fetch("data/occ.json")
+    return fetch(assetUrl("data/occ.json"))
       .then(function (r) {
         if (!r.ok) throw new Error("occ.json HTTP " + r.status);
         return r.json();
@@ -1357,11 +1410,15 @@
         if (!map.getSource("occ")) {
           map.addSource("occ", {
             type: "geojson",
-            data: gj,
+            data: gj.pri,
             cluster: true,
             clusterMaxZoom: 10,
             clusterRadius: 42,
             attribution: "Occurrences: GSNSW / GSQ / GSV / MRT / NTGS; WA MINEDEX CC BY-NC 4.0"
+          });
+          map.addSource("occ-sec", {
+            type: "geojson",
+            data: gj.sec
           });
           map.addLayer({
             id: "occ-clusters",
@@ -1394,9 +1451,22 @@
             filter: ["!", ["has", "point_count"]],
             paint: {
               "circle-color": stateColorExpr(),
-              "circle-radius": 4.2,
-              "circle-opacity": 0.9,
-              "circle-stroke-width": 0.8,
+              "circle-radius": 5.4,
+              "circle-opacity": 0.92,
+              "circle-stroke-width": 0.9,
+              "circle-stroke-color": "#0b1220"
+            }
+          });
+          map.addLayer({
+            id: "occ-sec-point",
+            type: "circle",
+            source: "occ-sec",
+            minzoom: 11,
+            paint: {
+              "circle-color": stateColorExpr(),
+              "circle-radius": 2.1,
+              "circle-opacity": 0.55,
+              "circle-stroke-width": 0.4,
               "circle-stroke-color": "#0b1220"
             }
           });
@@ -1406,21 +1476,35 @@
           map.on("mouseleave", "occ-point", function () {
             map.getCanvas().style.cursor = "";
           });
+          map.on("mouseenter", "occ-sec-point", function () {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", "occ-sec-point", function () {
+            map.getCanvas().style.cursor = "";
+          });
           map.on("click", "occ-clusters", function (e) {
             const f = (e.features || [])[0];
             if (!f) return;
-            map.getSource("occ").getClusterExpansionZoom(f.properties.cluster_id).then(function (z) {
-              map.easeTo({ center: f.geometry.coordinates, zoom: z });
-            });
+            skipNextClick = true;
+            showOccCluster(e.lngLat, f.properties.cluster_id, f.geometry.coordinates);
           });
         } else {
-          map.getSource("occ").setData(gj);
+          map.getSource("occ").setData(gj.pri);
+          if (map.getSource("occ-sec")) map.getSource("occ-sec").setData(gj.sec);
         }
         occLoaded = true;
         occLoading = false;
         applyOccFilter();
         const n = ((pack.rows || []).length);
-        log("Occurrences loaded (" + n.toLocaleString() + ")");
+        const st = pack.stats || {};
+        log(
+          "Occurrences loaded (" +
+            n.toLocaleString() +
+            (st.gold_primary != null
+              ? "; gold shows " + Number(st.gold_primary).toLocaleString() + " named/sized sites first"
+              : "") +
+            ")"
+        );
         if (findQuery && findInput) runFind(findInput.value);
         updateLegend();
       })
@@ -1681,7 +1765,7 @@
   });
 
 
-  const ASSET_V = "20260820";
+  const ASSET_V = "20260820g";
   const VS_A_COLOR = "#3d9cf0";
   const VS_B_COLOR = "#e83e8c";
   const GROUND_KEY = "xplorr.myground";
@@ -2012,6 +2096,186 @@
     }
     if (groundTitles) groundTitles.value = pins.join(", ");
     applyGroundFromForm(true);
+  }
+
+  function nearbyLiveTitles(lng, lat, state) {
+    const st = String(state || "").toLowerCase();
+    const out = [];
+    const seen = {};
+    function add(p, dist) {
+      if (!p || isDemoFlag(p.demo)) return;
+      if (st && p.state && String(p.state).toLowerCase() !== st) return;
+      const key = String(p.name || "") + "|" + String(p.tenure || p.holder || "");
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      out.push({ props: p, dist: dist == null ? 0 : dist });
+    }
+    const layers = titleFillIds();
+    if (layers.length && map.project) {
+      const pt = map.project([lng, lat]);
+      map.queryRenderedFeatures(pt, { layers: layers }).forEach(function (f) {
+        add(f.properties || {}, 0);
+      });
+    }
+    const radius = 0.03;
+    findIndex.forEach(function (it) {
+      if (it.kind !== "title" || it.life === "dead" || itemIsDemo(it)) return;
+      if (st && String(it.state || "").toLowerCase() !== st) return;
+      if (it.lng == null || it.lat == null) return;
+      const dx = Number(it.lng) - lng;
+      const dy = Number(it.lat) - lat;
+      if (Math.abs(dx) > radius || Math.abs(dy) > radius) return;
+      add(it.props || { name: it.name, holder: it.holder, state: it.state, tenure: it.tenure }, Math.sqrt(dx * dx + dy * dy));
+    });
+    out.sort(function (a, b) { return a.dist - b.dist; });
+    return out.slice(0, 6);
+  }
+
+  function reportsForOcc(props, titles) {
+    if (!reportsPack || isDemoFlag(props.demo)) return { rows: [], total: 0, portal: null };
+    const st = String(props.state || "").toLowerCase();
+    const keys = [];
+    const cos = [];
+    (titles || []).forEach(function (t) {
+      const p = t.props || t;
+      extractTitleKeys(p.state || st, p.name || "").forEach(function (k) { keys.push(k); });
+      companyLookupKeys(p.holder || "").forEach(function (c) { cos.push(c); });
+    });
+    const found = lookupReportsByKeys(keys, cos);
+    return { rows: found.rows, total: found.total, portal: (reportsPack.portals || {})[st] };
+  }
+
+  function occLeafSub(p) {
+    const bits = [];
+    if (p.state) bits.push(String(p.state).toUpperCase());
+    if (p.comm) bits.push(p.comm);
+    if (p.prod) bits.push(p.prod);
+    else if (p.size) bits.push(p.size);
+    return bits.join(" · ");
+  }
+
+  function showOccIdentify(lngLat, props) {
+    props = props || {};
+    popup.setLngLat(lngLat).setHTML(occPopupHtml(props) + '<div id="popup-extra"></div>').addTo(map);
+    const extraWait = function () {
+      const el = document.getElementById("popup-extra");
+      if (!el) return;
+      if (isDemoFlag(props.demo)) {
+        el.innerHTML = '<p class="popup-more">DEMO — no title or report join.</p>';
+        return;
+      }
+      const titles = nearbyLiveTitles(lngLat.lng, lngLat.lat, props.state);
+      let html = "";
+      if (titles.length) {
+        html += '<div class="popup-links"><h4>Nearby live titles</h4>';
+        titles.slice(0, 4).forEach(function (t, i) {
+          const p = t.props || {};
+          const label = p.name || p.tenure || "Title";
+          const sub = [p.state ? String(p.state).toUpperCase() : "", p.holder || ""].filter(Boolean).join(" · ");
+          html +=
+            '<button type="button" class="find-hit occ-near-title" data-i="' +
+            i +
+            '"><strong>' +
+            escapeHtml(String(label)) +
+            "</strong><span>" +
+            escapeHtml(sub) +
+            "</span></button>";
+        });
+        html += "</div>";
+      }
+      html += reportsHtml(reportsForOcc(props, titles), 6);
+      el.innerHTML = html;
+      el.querySelectorAll(".occ-near-title").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          const t = titles[Number(btn.getAttribute("data-i"))];
+          if (!t) return;
+          const p = t.props || {};
+          showTitleIdentify(lngLat, p);
+        });
+      });
+    };
+    if (reportsPack) extraWait();
+    else ensureReports().then(extraWait);
+  }
+
+  function showOccCluster(lngLat, clusterId, coords) {
+    const src = map.getSource("occ");
+    if (!src || src.getClusterLeaves == null) {
+      map.easeTo({ center: coords, zoom: Math.min(map.getZoom() + 2, 12) });
+      return;
+    }
+    src.getClusterLeaves(clusterId, 80, 0).then(function (leaves) {
+      const named = [];
+      let unnamed = 0;
+      (leaves || []).forEach(function (f) {
+        const p = f.properties || {};
+        const xy = (f.geometry && f.geometry.coordinates) || coords;
+        if (p.name) named.push({ props: p, lng: xy[0], lat: xy[1] });
+        else unnamed++;
+      });
+      named.sort(function (a, b) {
+        const ap = a.props.prod ? 1 : 0;
+        const bp = b.props.prod ? 1 : 0;
+        if (ap !== bp) return bp - ap;
+        return String(a.props.name || "").localeCompare(String(b.props.name || ""));
+      });
+      const show = named.slice(0, 12);
+      const title = named.length
+        ? named.length.toLocaleString() + " named site" + (named.length === 1 ? "" : "s") + " in this cluster"
+        : "Historic workings in this cluster";
+      let html =
+        '<div class="popup-kicker">Occurrences</div><div class="popup-title">' +
+        escapeHtml(title) +
+        "</div>";
+      show.forEach(function (it, i) {
+        html +=
+          '<button type="button" class="find-hit occ-leaf" data-i="' +
+          i +
+          '"><strong>' +
+          escapeHtml(String(it.props.name)) +
+          "</strong><span>" +
+          escapeHtml(occLeafSub(it.props)) +
+          "</span></button>";
+      });
+      if (named.length > show.length) {
+        html +=
+          '<p class="popup-more">Showing ' +
+          show.length.toLocaleString() +
+          " of " +
+          named.length.toLocaleString() +
+          " named sites</p>";
+      }
+      if (unnamed) {
+        html +=
+          '<p class="popup-more">+ ' +
+          unnamed.toLocaleString() +
+          " unnamed historic working" +
+          (unnamed === 1 ? "" : "s") +
+          "</p>";
+      }
+      html += '<button type="button" class="popup-pin" id="cluster-zoom">Zoom in</button>';
+      popup.setLngLat(lngLat).setHTML(html).addTo(map);
+      const root = popup.getElement();
+      if (root) {
+        root.querySelectorAll(".occ-leaf").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            const it = show[Number(btn.getAttribute("data-i"))];
+            if (!it) return;
+            showOccIdentify({ lng: it.lng, lat: it.lat }, it.props);
+          });
+        });
+        const zbtn = root.querySelector("#cluster-zoom");
+        if (zbtn) {
+          zbtn.addEventListener("click", function () {
+            src.getClusterExpansionZoom(clusterId).then(function (z) {
+              map.easeTo({ center: coords, zoom: z });
+            });
+          });
+        }
+      }
+    }).catch(function () {
+      map.easeTo({ center: coords, zoom: Math.min(map.getZoom() + 2, 12) });
+    });
   }
 
   function showTitleIdentify(lngLat, props) {
@@ -2422,7 +2686,7 @@
       packBody.appendChild(section("Occurrences", occs, PACK_CAP.occ, function (it) {
         return packRow(hitLabel(it), hitSub(it), function () {
           map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 9) });
-          popup.setLngLat([it.lng, it.lat]).setHTML(occPopupHtml(it.props || {})).addTo(map);
+          showOccIdentify({ lng: it.lng, lat: it.lat }, it.props || {});
         });
       }));
       packBody.appendChild(section("Hole hexes", holes, PACK_CAP.holes, function (it) {
@@ -2639,11 +2903,24 @@
         return;
       }
     }
-    if (map.getLayer("occ-point") && occMaster.checked) {
-      const occs = map.queryRenderedFeatures(e.point, { layers: ["occ-point"] });
-      if (occs.length) {
-        popup.setLngLat(e.lngLat).setHTML(occPopupHtml(occs[0].properties || {})).addTo(map);
+    if (occMaster && occMaster.checked && map.getLayer("occ-clusters")) {
+      const cls = map.queryRenderedFeatures(e.point, { layers: ["occ-clusters"] });
+      if (cls.length) {
+        const f = cls[0];
+        showOccCluster(e.lngLat, f.properties.cluster_id, f.geometry.coordinates);
         return;
+      }
+    }
+    if (occMaster && occMaster.checked) {
+      const occLayers = [];
+      if (map.getLayer("occ-point")) occLayers.push("occ-point");
+      if (map.getLayer("occ-sec-point")) occLayers.push("occ-sec-point");
+      if (occLayers.length) {
+        const occs = map.queryRenderedFeatures(e.point, { layers: occLayers });
+        if (occs.length) {
+          showOccIdentify(e.lngLat, occs[0].properties || {});
+          return;
+        }
       }
     }
     if (map.getLayer("holes-hex") && holesMaster.checked) {

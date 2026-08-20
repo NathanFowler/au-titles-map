@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Xplorr</title>
   <link rel="stylesheet" href="vendor/maplibre-gl.css" />
-  <link rel="stylesheet" href="app.css?v=20260820" />
+  <link rel="stylesheet" href="app.css?v=20260820g" />
 </head>
 <body>
   <aside id="panel">
@@ -55,7 +55,7 @@
 
     <details class="group" open>
       <summary>Commodities</summary>
-      <p class="note">Turns on mines and occurrences.</p>
+      <p class="note">Turns on mines and occurrences. Gold (and other types) show named and sized sites first; unnamed historic workings appear when you zoom in.</p>
       <div class="kind-actions">
         <button type="button" id="mins-all">All</button>
         <button type="button" id="mins-none">None</button>
@@ -68,7 +68,7 @@
       <h3>Occurrences</h3>
       <label class="row"><input type="checkbox" id="occ-master" checked /> Show points</label>
       <div id="occ-toggles"></div>
-      <p class="note">SA points are a small DEMO set. WA MINEDEX is CC BY-NC.</p>
+      <p class="note">Named / sized sites first. Unnamed historic workings from zoom 11. SA points are a small DEMO set. WA MINEDEX is CC BY-NC.</p>
 
       <h3>Drillholes</h3>
       <label class="row"><input type="checkbox" id="holes-master" /> Density hex (~20 km)</label>
@@ -123,6 +123,6 @@
   </aside>
   <div id="popup" class="hidden"></div>
   <script src="vendor/maplibre-gl.js"></script>
-  <script src="app.js?v=20260820"></script>
+  <script src="app.js?v=20260820g"></script>
 </body>
 </html>

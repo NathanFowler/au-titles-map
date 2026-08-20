@@ -1,28 +1,57 @@
 {
-  "generated": "2026-08-19T00:17:28Z",
+  "generated": "2026-08-20T10:43:02Z",
   "occurrences": {
-    "bytes": 9986068,
-    "features": 132234,
+    "bytes": 25410782,
+    "features": 132273,
     "counts": {
       "nsw": 30898,
       "vic": 18792,
-      "wa": 48398,
-      "tas": 8297,
-      "nt": 3487,
       "qld": 22242,
+      "wa": 48402,
+      "tas": 8297,
+      "nt": 3522,
       "sa": 120
     },
     "skipped": {},
     "qld_sources": {
-      "minocc_by_status_12": 21380,
-      "coal_2_101_105": 406,
-      "petroleum_19": 456,
-      "skipped_duplicate_layers": "14-17 (same sites as 12)",
-      "omitted": "KRA extractive polygons/lines (not occurrence points)"
+      "MiningResources_12.geojson": 21380,
+      "MiningResources_2.geojson": 61,
+      "MiningResources_101.geojson": 24,
+      "MiningResources_102.geojson": 33,
+      "MiningResources_103.geojson": 16,
+      "MiningResources_104.geojson": 221,
+      "MiningResources_105.geojson": 51,
+      "MiningResources_19.geojson": 456
     },
     "demo": {
       "sa": 120,
       "note": "Preview-only SA points; not from harvest."
+    },
+    "fields": [
+      "st",
+      "lon",
+      "lat",
+      "name",
+      "comm",
+      "kind",
+      "status",
+      "demo",
+      "field",
+      "work",
+      "host",
+      "style",
+      "size",
+      "prod",
+      "sid",
+      "url",
+      "pri"
+    ],
+    "primary": 102273,
+    "secondary": 30000,
+    "gold": {
+      "total": 60139,
+      "primary": 43619,
+      "secondary": 16520
     }
   },
   "holes": {

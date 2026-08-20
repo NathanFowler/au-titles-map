@@ -26,19 +26,25 @@ Sidebar filter matching the geology-kinds UI (All / None, two-column checkboxes,
 
 Filter list (16): gold, copper, silver, iron, lead, zinc, tin, nickel, coal, lithium, uranium, manganese, tungsten, diamond, construction (sand / gravel / aggregate), other (rare, unknown, industrial).
 
-Applies to **occurrences only**. Ticking a commodity turns occurrences on and loads them. Title polygons have no commodity field. Multi-commodity points stay visible if any selected type matches. All types and occurrences are on by default.
+Applies to **occurrences only**. Ticking a commodity turns occurrences on and loads them. Title polygons have no commodity field. Multi-commodity points stay visible if any selected type matches. All types and occurrences are on by default. Named and sized sites show first; unnamed historic workings appear when you zoom in.
 
 ## Occurrences
 
-Clustered mineral occurrences / mines (`data/occ.json`, ~132k real points + 120 DEMO SA points). On by default. **WA MINEDEX is CC BY-NC 4.0.** Empty popup fields show a `DEMO`-prefixed placeholder.
+Clustered mineral occurrences / mines (`data/occ.json`, occ-v2 slim pack). On by default. **WA MINEDEX is CC BY-NC 4.0.**
+
+Commodity filters (including gold) plot **named / size MINOR+ / real production** sites first. Unnamed and UNKNOWN historic workings stay off until zoom 11 and draw smaller. Cluster click opens a short named-site list; a row opens the full card. Zoom-in remains a secondary control.
+
+Real harvest extras on the card when present: field/district, workings, host, deposit style, size, production (never `-999` / blank), source id, portal URL (only if the harvest already has one — WA MINEDEX `web_link`). Empty stays empty on real rows. DEMO fill is only for `demo: true` SA preview points.
+
+Cards also join **nearby live titles** (polygon under the point, else ~3 km) and `reports_index` the same way hex report links do — tenement / name / company, official harvest URLs only.
 
 | State | Points | Source |
 | --- | ---: | --- |
 | NSW | 30,898 | GSNSW `mineral_occurrence` |
 | VIC | 18,792 | GSV `minsite` |
-| WA | 48,398 | DMIRS MINEDEX (CC BY-NC) |
+| WA | 48,402 | DMIRS MINEDEX (CC BY-NC) |
 | TAS | 8,297 | MRT mineral occurrences |
-| NT | 3,487 | NTGS occurrences + mine sites |
+| NT | 3,522 | NTGS occurrences + mine sites |
 | QLD | 22,242 | GSQ MiningResources MINOCC + coal + petroleum |
 | SA | 120 DEMO | preview-only points (`demo: true`); not harvested |
 
