@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Xplorr</title>
   <link rel="stylesheet" href="vendor/maplibre-gl.css" />
-  <link rel="stylesheet" href="app.css?v=20260820g" />
+  <link rel="stylesheet" href="app.css?v=20260820h" />
 </head>
 <body>
   <aside id="panel">
@@ -18,6 +18,10 @@
     <details class="group" open>
       <summary>Find</summary>
       <input type="search" id="find" placeholder="Title number, company, occurrence…" autocomplete="off" />
+      <div class="openground">
+        <button type="button" id="open-ground" aria-pressed="false">Open ground</button>
+        <p class="note">Click the map for <strong>Open ground</strong> (no live title covers that point) or <strong>Held</strong> plus the covering live titles. This only means no live title in our state registers — not a grant, and not parks, native title, planning, pastoral or city lots. ACT has no titles register. Share with ?open=1.</p>
+      </div>
       <div id="find-results" hidden></div>
       <p class="note">Click a result or the map. Compare with vs=BHP,RIO in the URL.</p>
       <div class="myground">
@@ -123,6 +127,6 @@
   </aside>
   <div id="popup" class="hidden"></div>
   <script src="vendor/maplibre-gl.js"></script>
-  <script src="app.js?v=20260820g"></script>
+  <script src="app.js?v=20260820h"></script>
 </body>
 </html>

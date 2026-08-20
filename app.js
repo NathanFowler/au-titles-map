@@ -9,6 +9,20 @@
     { id: "nt",  name: "NT",  color: "#ff9da7" }
   ];
 
+  // Approximate state extents used only to decide which live title layers to load.
+  // ACT is inside the NSW box and has no titles register.
+  const ACT_BBOX = { west: 148.73, south: -35.93, east: 149.40, north: -35.12 };
+  const STATE_BBOXES = {
+    nsw: { west: 140.99, south: -37.51, east: 153.64, north: -28.16 },
+    vic: { west: 140.96, south: -39.16, east: 150.00, north: -33.98 },
+    qld: { west: 137.99, south: -29.18, east: 153.55, north: -9.14 },
+    wa:  { west: 112.92, south: -35.14, east: 129.00, north: -13.69 },
+    sa:  { west: 129.00, south: -38.06, east: 141.00, north: -25.99 },
+    tas: { west: 143.82, south: -43.65, east: 148.48, north: -39.20 },
+    nt:  { west: 129.00, south: -26.00, east: 138.00, north: -10.97 }
+  };
+  const OPEN_DISCLAIMER = "This only means no live title in our state registers at this location. Not a grant. Not parks, native title, planning, pastoral or city lots. ACT has no titles register.";
+
   const KINDS = [
     { id: "granite", label: "granite", color: "#f4b6c2" },
     { id: "felsic_volcanic", label: "felsic volcanic", color: "#f2c14e" },
@@ -138,6 +152,10 @@
   let gchemLoaded = false;
   let gchemLoading = false;
   let findQuery = "";
+  const liveLoad = {};
+  const liveTitleIndex = {};
+  let openGroundMode = false;
+  let lastOpenPoint = null;
   let occIndexed = false;
   let holesIndexed = false;
   let gchemIndexed = false;
@@ -230,9 +248,9 @@
       .join("");
   }
 
-  function popupWrap(kicker, title, rows) {
+  function popupWrap(kicker, title, rows, kickerClass) {
     return (
-      (kicker ? '<div class="popup-kicker">' + escapeHtml(kicker) + "</div>" : "") +
+      (kicker ? '<div class="popup-kicker' + (kickerClass ? " " + kickerClass : "") + '">' + escapeHtml(kicker) + "</div>" : "") +
       '<div class="popup-title">' +
       escapeHtml(String(title)) +
       "</div>" +
@@ -707,6 +725,18 @@
     if (next !== findQuery) findUserPicked = false;
     findQuery = next;
     if (!findResults) return;
+    if (findQuery === "open" || findQuery === "open ground" || findQuery === "vacant" || findQuery === "held") {
+      setOpenGroundMode(true);
+      findResults.hidden = false;
+      findResults.innerHTML =
+        '<div class="find-summary"><strong>Open ground</strong> · click the map</div>' +
+        '<p class="note">' + escapeHtml(OPEN_DISCLAIMER) + "</p>";
+      applyTitleSearch("");
+      applyOccFilter();
+      applyHexFilter("holes");
+      applyHexFilter("gchem");
+      return;
+    }
     if (!findQuery) {
       findHexKinds.holes = false;
       findHexKinds.gchem = false;
@@ -872,8 +902,9 @@
     const url = "data/" + state + "_" + life + ".geojson";
 
     if (map.getSource(sid)) return Promise.resolve(true);
+    if (liveLoad[sid]) return liveLoad[sid];
 
-    return fetch(url)
+    liveLoad[sid] = fetch(url)
       .then(function (r) {
         if (!r.ok) throw new Error(url + " HTTP " + r.status);
         return r.json();
@@ -882,6 +913,8 @@
         const n = (gj.features || []).length;
         if (n === 0) return false;
         indexTitleFeatures(state, life, gj);
+        if (life === "live") indexLiveTitleGeoms(state, gj);
+        if (map.getSource(sid)) return true;
         map.addSource(sid, { type: "geojson", data: gj, generateId: true });
         const opacityFill = life === "live" ? 0.28 : 0.12;
         const opacityLine = life === "live" ? 0.9 : 0.55;
@@ -914,7 +947,12 @@
           applyGroundFilters();
         }
         return true;
+      })
+      .catch(function (err) {
+        delete liveLoad[sid];
+        throw err;
       });
+    return liveLoad[sid];
   }
 
   function setVisible(state, life, visible) {
@@ -1765,7 +1803,7 @@
   });
 
 
-  const ASSET_V = "20260820g";
+  const ASSET_V = "20260820h";
   const VS_A_COLOR = "#3d9cf0";
   const VS_B_COLOR = "#e83e8c";
   const GROUND_KEY = "xplorr.myground";
@@ -2574,6 +2612,390 @@
     return !(a[2] < b.west || a[0] > b.east || a[3] < b.south || a[1] > b.north);
   }
 
+  function pointInLngLatBbox(lng, lat, b) {
+    return lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north;
+  }
+
+  function lngLatBboxesOverlap(a, b) {
+    return !(a.east < b.west || a.west > b.east || a.north < b.south || a.south > b.north);
+  }
+
+  function isInAct(lng, lat) {
+    return pointInLngLatBbox(lng, lat, ACT_BBOX);
+  }
+
+  function statesForPoint(lng, lat) {
+    if (isInAct(lng, lat)) return [];
+    const out = [];
+    STATES.forEach(function (s) {
+      const bb = STATE_BBOXES[s.id];
+      if (bb && pointInLngLatBbox(lng, lat, bb)) out.push(s.id);
+    });
+    return out;
+  }
+
+  function statesForBounds(bounds) {
+    const out = [];
+    STATES.forEach(function (s) {
+      const bb = STATE_BBOXES[s.id];
+      if (bb && lngLatBboxesOverlap(bb, bounds)) out.push(s.id);
+    });
+    return out;
+  }
+
+  function statesInView() {
+    const b = map.getBounds();
+    return statesForBounds({
+      west: b.getWest(),
+      south: b.getSouth(),
+      east: b.getEast(),
+      north: b.getNorth()
+    });
+  }
+
+  function pointInRing(lng, lat, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1];
+      const xj = ring[j][0], yj = ring[j][1];
+      const denom = yj - yi;
+      if (((yi > lat) !== (yj > lat)) && denom !== 0 && (lng < (xj - xi) * (lat - yi) / denom + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  function pointInPolygonCoords(lng, lat, coords) {
+    if (!coords || !coords.length) return false;
+    if (!pointInRing(lng, lat, coords[0])) return false;
+    for (let h = 1; h < coords.length; h++) {
+      if (pointInRing(lng, lat, coords[h])) return false;
+    }
+    return true;
+  }
+
+  function pointInGeom(lng, lat, geom) {
+    if (!geom) return false;
+    if (geom.type === "Polygon") return pointInPolygonCoords(lng, lat, geom.coordinates);
+    if (geom.type === "MultiPolygon") {
+      for (let i = 0; i < (geom.coordinates || []).length; i++) {
+        if (pointInPolygonCoords(lng, lat, geom.coordinates[i])) return true;
+      }
+    }
+    return false;
+  }
+
+  function anyCoordInBox(geom, bounds) {
+    let hit = false;
+    function walk(c) {
+      if (hit) return;
+      if (typeof c[0] === "number") {
+        if (pointInBox(c[0], c[1], bounds)) hit = true;
+      } else c.forEach(walk);
+    }
+    if (geom && geom.coordinates) walk(geom.coordinates);
+    return hit;
+  }
+
+  function geomOverlapsBox(geom, bb, bounds) {
+    if (!geom || !bb) return false;
+    if (!bboxHits(bb, bounds)) return false;
+    if (anyCoordInBox(geom, bounds)) return true;
+    if (pointInGeom(bounds.west, bounds.south, geom)) return true;
+    if (pointInGeom(bounds.east, bounds.south, geom)) return true;
+    if (pointInGeom(bounds.west, bounds.north, geom)) return true;
+    if (pointInGeom(bounds.east, bounds.north, geom)) return true;
+    const cx = (bounds.west + bounds.east) / 2;
+    const cy = (bounds.south + bounds.north) / 2;
+    return pointInGeom(cx, cy, geom);
+  }
+
+  function indexLiveTitleGeoms(state, gj) {
+    const rows = [];
+    (gj.features || []).forEach(function (f) {
+      const p = f.properties || {};
+      if (isDemoFlag(p.demo)) return;
+      const geom = f.geometry;
+      const bb = geomBbox(geom);
+      if (!bb) return;
+      rows.push({ props: p, geom: geom, bbox: bb, state: state });
+    });
+    liveTitleIndex[state] = rows;
+  }
+
+  function titleCoverKey(p) {
+    return String((p && p.state) || "") + "|" + String((p && p.name) || "") + "|" +
+      String((p && p.tenure) || "") + "|" + String((p && p.holder) || "");
+  }
+
+  function titlesCoveringPoint(lng, lat, stateIds) {
+    const out = [];
+    const seen = {};
+    (stateIds || []).forEach(function (id) {
+      const rows = liveTitleIndex[id] || [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const bb = row.bbox;
+        if (lng < bb[0] || lng > bb[2] || lat < bb[1] || lat > bb[3]) continue;
+        if (!pointInGeom(lng, lat, row.geom)) continue;
+        const k = titleCoverKey(row.props);
+        if (seen[k]) continue;
+        seen[k] = true;
+        out.push(row);
+      }
+    });
+    return out;
+  }
+
+  function titlesOverlappingBox(bounds, stateIds) {
+    const out = [];
+    const seen = {};
+    (stateIds || []).forEach(function (id) {
+      const rows = liveTitleIndex[id] || [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!geomOverlapsBox(row.geom, row.bbox, bounds)) continue;
+        const k = titleCoverKey(row.props);
+        if (seen[k]) continue;
+        seen[k] = true;
+        out.push(row);
+      }
+    });
+    return out;
+  }
+
+  function sampleGridSize(bounds) {
+    const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
+    if (area > 4) return 10;
+    if (area > 0.25) return 8;
+    return 6;
+  }
+
+  function sampleOpenGround(bounds, stateIds) {
+    const n = sampleGridSize(bounds);
+    let vacant = 0;
+    let held = 0;
+    const stepLng = (bounds.east - bounds.west) / n;
+    const stepLat = (bounds.north - bounds.south) / n;
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        const lng = bounds.west + (c + 0.5) * stepLng;
+        const lat = bounds.south + (r + 0.5) * stepLat;
+        if (titlesCoveringPoint(lng, lat, stateIds).length) held++;
+        else vacant++;
+      }
+    }
+    return { n: n * n, vacant: vacant, held: held, grid: n };
+  }
+
+  function ensureLiveStates(stateIds) {
+    const jobs = (stateIds || []).map(function (id) {
+      const inp = liveBox ? liveBox.querySelector('input[data-state="' + id + '"][data-life="live"]') : null;
+      if (inp && inp.disabled) return Promise.resolve(false);
+      const st = STATES.find(function (x) { return x.id === id; });
+      if (!st) return Promise.resolve(false);
+      if (inp) inp.checked = true;
+      return addStateLayers(id, "live", st.color).then(function (ok) {
+        if (ok) {
+          setVisible(id, "live", true);
+          if (findQuery) applyTitleSearch(findQuery);
+        }
+        return ok;
+      }).catch(function (err) {
+        log("Live titles " + id.toUpperCase() + ": " + err.message);
+        return false;
+      });
+    });
+    return Promise.all(jobs).then(function (oks) {
+      updateLegend();
+      return oks;
+    });
+  }
+
+  function fmtCoord(n) {
+    return Number(n).toFixed(5);
+  }
+
+  function openDisclaimerHtml() {
+    return '<p class="popup-more">' + escapeHtml(OPEN_DISCLAIMER) + "</p>";
+  }
+
+  function setOpenParam(val) {
+    const u = new URL(window.location.href);
+    if (val) u.searchParams.set("open", val);
+    else u.searchParams.delete("open");
+    history.replaceState(null, "", u.pathname + u.search + u.hash);
+  }
+
+  function setOpenGroundMode(on, shareVal) {
+    openGroundMode = !!on;
+    const btn = document.getElementById("open-ground");
+    if (btn) {
+      btn.classList.toggle("active", openGroundMode);
+      btn.setAttribute("aria-pressed", openGroundMode ? "true" : "false");
+    }
+    if (openGroundMode) {
+      ensureLiveStates(statesInView());
+      log("Open ground on — click the map. Live titles load for states in view.");
+      if (shareVal) setOpenParam(shareVal);
+      else if (!new URL(window.location.href).searchParams.get("open")) setOpenParam("1");
+    } else {
+      setOpenParam("");
+      log("Open ground off");
+    }
+  }
+
+  function showOpenGroundIdentify(lngLat) {
+    const lng = lngLat.lng;
+    const lat = lngLat.lat;
+    lastOpenPoint = { lng: lng, lat: lat };
+    popup.setLngLat(lngLat).setHTML(
+      popupWrap("Open ground", "Checking live titles…", [
+        ["Longitude", fmtCoord(lng)],
+        ["Latitude", fmtCoord(lat)]
+      ], "popup-open")
+    ).addTo(map);
+
+    if (isInAct(lng, lat)) {
+      popup.setHTML(
+        popupWrap("Open ground", "ACT has no titles register", [
+          ["Longitude", fmtCoord(lng)],
+          ["Latitude", fmtCoord(lat)],
+          ["Coverage", "ACT is not in the state title feeds"]
+        ], "popup-open") + openDisclaimerHtml()
+      );
+      if (openGroundMode) setOpenParam(fmtCoord(lng) + "," + fmtCoord(lat));
+      return Promise.resolve();
+    }
+
+    const states = statesForPoint(lng, lat);
+    if (!states.length) {
+      popup.setHTML(
+        popupWrap("Open ground", "Outside title coverage", [
+          ["Longitude", fmtCoord(lng)],
+          ["Latitude", fmtCoord(lat)],
+          ["Coverage", "Outside NSW, VIC, QLD, WA, SA, TAS, NT bounding boxes"]
+        ], "popup-open") +
+        '<p class="popup-more">No state title layer is loaded for this point. ACT has no titles register. This is not a vacant-land listing.</p>'
+      );
+      if (openGroundMode) setOpenParam(fmtCoord(lng) + "," + fmtCoord(lat));
+      return Promise.resolve();
+    }
+
+    return ensureLiveStates(states).then(function (oks) {
+      if (!popup.isOpen()) return;
+      const failed = [];
+      states.forEach(function (id, i) {
+        if (oks[i] === false && !liveTitleIndex[id]) {
+          const meta = layerMeta[id + "_live"];
+          if (meta && meta.features) failed.push(id.toUpperCase());
+        }
+      });
+      if (failed.length) {
+        popup.setHTML(
+          popupWrap("Open ground", "Titles not loaded", [
+            ["Longitude", fmtCoord(lng)],
+            ["Latitude", fmtCoord(lat)],
+            ["States", failed.join(", ")]
+          ], "popup-open") +
+          '<p class="popup-more">Could not load live titles for ' +
+          escapeHtml(failed.join(", ")) +
+          ". Not marking this point as open.</p>"
+        );
+        return;
+      }
+      const titles = titlesCoveringPoint(lng, lat, states);
+      const share = fmtCoord(lng) + "," + fmtCoord(lat);
+      if (!titles.length) {
+        popup.setHTML(
+          popupWrap("Open ground", "No live title covers this point", [
+            ["Status", "Open ground"],
+            ["State", states.map(function (s) { return s.toUpperCase(); }).join(" / ")],
+            ["Longitude", fmtCoord(lng)],
+            ["Latitude", fmtCoord(lat)]
+          ], "popup-open") + openDisclaimerHtml()
+        );
+        if (openGroundMode) setOpenParam(share);
+        return;
+      }
+      const first = titles[0].props || {};
+      const seed = first.name || first.tenure || first.state || "";
+      const heading = titles.length === 1
+        ? fillField(first.name, "Live title")
+        : titles.length.toLocaleString() + " live titles cover this point";
+      let html = popupWrap("Held", heading, [
+        ["State", fillField(first.state, DEMO_NA)],
+        ["Tenure", fillField(first.tenure, DEMO_NA)],
+        ["Status", fillField(first.status, "DEMO current")],
+        ["Name", fillField(first.name, "DEMO unnamed title")],
+        ["Holder", fillField(first.holder, demoHolder(seed))],
+        ["Grant", fillField(first.grant, DEMO_NA)],
+        ["Expiry", fillField(first.expiry, DEMO_NA)]
+      ], "popup-held");
+      html += '<div class="popup-links"><h4>Covering live titles</h4>';
+      titles.slice(0, 8).forEach(function (t, i) {
+        const p = t.props || {};
+        const label = p.name || p.tenure || "Title";
+        const sub = [p.state ? String(p.state).toUpperCase() : "", p.tenure || "", p.holder || ""].filter(Boolean).join(" · ");
+        html +=
+          '<button type="button" class="find-hit open-title" data-i="' +
+          i +
+          '"><strong>' +
+          escapeHtml(String(label)) +
+          "</strong><span>" +
+          escapeHtml(sub) +
+          "</span></button>";
+      });
+      if (titles.length > 8) {
+        html += '<p class="popup-more">Showing 8 of ' + titles.length.toLocaleString() + "</p>";
+      }
+      html += "</div>";
+      html += '<button type="button" class="popup-pin" id="pin-this">Pin this title</button>';
+      html += openDisclaimerHtml();
+      popup.setHTML(html);
+      lastTitle = { name: first.name, holder: first.holder, state: first.state, lng: lng, lat: lat };
+      bindPinButton(first);
+      const root = popup.getElement();
+      if (root) {
+        root.querySelectorAll(".open-title").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            const t = titles[Number(btn.getAttribute("data-i"))];
+            if (t) showTitleIdentify(lngLat, t.props || {});
+          });
+        });
+      }
+      if (openGroundMode) setOpenParam(share);
+    });
+  }
+
+  function initOpenGround() {
+    const btn = document.getElementById("open-ground");
+    if (btn) {
+      btn.addEventListener("click", function () {
+        setOpenGroundMode(!openGroundMode);
+      });
+    }
+    map.on("moveend", function () {
+      if (!openGroundMode) return;
+      ensureLiveStates(statesInView());
+    });
+    const raw = new URL(window.location.href).searchParams.get("open");
+    if (raw == null) return;
+    const parts = String(raw).split(",");
+    if (parts.length >= 2 && isFinite(Number(parts[0])) && isFinite(Number(parts[1]))) {
+      const lng = Number(parts[0]);
+      const lat = Number(parts[1]);
+      setOpenGroundMode(true, raw);
+      map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 8) });
+      map.once("moveend", function () {
+        showOpenGroundIdentify({ lng: lng, lat: lat });
+      });
+    } else {
+      setOpenGroundMode(true, raw || "1");
+    }
+  }
+
   function showBoxOnMap(b) {
     const ring = [
       [b.west, b.south], [b.east, b.south], [b.east, b.north], [b.west, b.north], [b.west, b.south]
@@ -2619,7 +3041,8 @@
     if (!occLoaded && !occLoading) loadOccurrences();
     if (!holesLoaded && !holesLoading) loadHex("holes");
     if (!gchemLoaded && !gchemLoading) loadHex("gchem");
-    ensureReports().then(function () {
+    const boxStates = statesForBounds(bounds);
+    Promise.all([ensureLiveStates(boxStates), ensureReports()]).then(function () {
       const titles = [];
       const occs = [];
       const holes = [];
@@ -2628,6 +3051,28 @@
         if (itemIsDemo(it) || it.lng == null) return;
         if (it.kind === "title" && it.life !== "dead" && pointInBox(it.lng, it.lat, bounds)) titles.push(it);
         else if (it.kind === "occ" && pointInBox(it.lng, it.lat, bounds)) occs.push(it);
+      });
+      const titleSeen = {};
+      titles.forEach(function (it) {
+        titleSeen[titleCoverKey(it.props || { name: it.name, holder: it.holder, state: it.state, tenure: it.tenure })] = true;
+      });
+      titlesOverlappingBox(bounds, boxStates).forEach(function (row) {
+        const p = row.props || {};
+        const k = titleCoverKey(p);
+        if (titleSeen[k]) return;
+        titleSeen[k] = true;
+        const c = geomCenter(row.geom);
+        titles.push({
+          kind: "title",
+          state: row.state,
+          life: "live",
+          name: p.name || "",
+          holder: p.holder || "",
+          tenure: p.tenure || "",
+          lng: c ? c[0] : (row.bbox[0] + row.bbox[2]) / 2,
+          lat: c ? c[1] : (row.bbox[1] + row.bbox[3]) / 2,
+          props: p
+        });
       });
       function collectHex(kind, store, dest) {
         const gj = store[kind];
@@ -2677,6 +3122,41 @@
       }
 
       packBody.innerHTML = "";
+      const openWrap = document.createElement("div");
+      openWrap.className = "pack-section";
+      const openH = document.createElement("h3");
+      openH.textContent = "Open ground";
+      openWrap.appendChild(openH);
+      const sample = sampleOpenGround(bounds, boxStates);
+      const openP = document.createElement("p");
+      openP.className = "note";
+      const pct = sample.n ? Math.round((100 * sample.vacant) / sample.n) : 0;
+      let openText;
+      if (!boxStates.length && !lngLatBboxesOverlap(bounds, ACT_BBOX)) {
+        openText = "This box is outside the state bounding boxes we use to load title layers (NSW, VIC, QLD, WA, SA, TAS, NT).";
+      } else if (sample.vacant === sample.n) {
+        openText = "All " + sample.n + " sample points have no live title.";
+      } else if (sample.vacant === 0) {
+        openText = "All " + sample.n + " sample points are held by a live title.";
+      } else {
+        openText = pct + "% of sample points have no live title (" +
+          sample.vacant + " vacant · " + sample.held + " held of " + sample.n + ").";
+      }
+      openText += " Point sample on a " + sample.grid + "×" + sample.grid +
+        " grid — not a vacant cadastral polygon.";
+      if (boxStates.length) {
+        openText += " Loaded " + boxStates.map(function (s) { return s.toUpperCase(); }).join(", ") + " live titles.";
+      }
+      if (lngLatBboxesOverlap(bounds, ACT_BBOX)) {
+        openText += " Box overlaps ACT, which has no titles register.";
+      }
+      openP.textContent = openText;
+      openWrap.appendChild(openP);
+      const openD = document.createElement("p");
+      openD.className = "note";
+      openD.textContent = OPEN_DISCLAIMER;
+      openWrap.appendChild(openD);
+      packBody.appendChild(openWrap);
       packBody.appendChild(section("Live titles", titles, PACK_CAP.title, function (it) {
         return packRow(hitLabel(it), hitSub(it), function () {
           map.easeTo({ center: [it.lng, it.lat], zoom: Math.max(map.getZoom(), 9) });
@@ -2888,6 +3368,10 @@
   map.on("click", function (e) {
     if (skipNextClick) { skipNextClick = false; return; }
     if (boxDrawing) return;
+    if (openGroundMode) {
+      showOpenGroundIdentify(e.lngLat);
+      return;
+    }
     const tLayers = titleFillIds();
     if (tLayers.length) {
       const titles = map.queryRenderedFeatures(e.point, { layers: tLayers });
@@ -2946,7 +3430,9 @@
     }
     if (gaToggle.checked) {
       identifyGa(e.lngLat);
+      return;
     }
+    showOpenGroundIdentify(e.lngLat);
   });
 
   map.on("load", function () {
@@ -3005,6 +3491,7 @@
           log("Ready · " + live.toLocaleString() + " live titles");
           initGroundUi();
           initBoxTool();
+          initOpenGround();
           applyGroundFilters();
           ensureReports();
           if (findQuery && findInput) runFind(findInput.value);
